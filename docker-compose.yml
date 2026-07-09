@@ -1,0 +1,62 @@
+services:
+  eew-hub:
+    build: .
+    container_name: raspi-eew-hub
+    restart: unless-stopped
+    depends_on:
+      bark-server:
+        condition: service_started
+    ports:
+      - "${EEW_HUB_PORT:-18761}:18761"
+    environment:
+      WOLFX_WS_URL: ${WOLFX_WS_URL:-}
+      WOLFX_WS_BASE: ${WOLFX_WS_BASE:-wss://ws-api.wolfx.jp}
+      WOLFX_SOURCES: ${WOLFX_SOURCES:-all_eew}
+      WOLFX_LISTENER_ENABLED: ${WOLFX_LISTENER_ENABLED:-1}
+      GLOBAL_QUAKE_LISTENER_ENABLED: ${GLOBAL_QUAKE_LISTENER_ENABLED:-1}
+      GLOBAL_QUAKE_SOURCE_URL: ${GLOBAL_QUAKE_SOURCE_URL:-wss://www.seismicportal.eu/standing_order/websocket}
+      GLOBAL_QUAKE_MIN_MAGNITUDE: ${GLOBAL_QUAKE_MIN_MAGNITUDE:-7.5}
+      ALERT_RED_INTENSITY: ${ALERT_RED_INTENSITY:-4}
+      ALERT_YELLOW_INTENSITY: ${ALERT_YELLOW_INTENSITY:-2}
+      BARK_RED_LEVEL: ${BARK_RED_LEVEL:-critical}
+      BARK_RED_VOLUME: ${BARK_RED_VOLUME:-8}
+      BARK_RED_SOUND: ${BARK_RED_SOUND:-alarm}
+      BARK_RED_REPEAT: ${BARK_RED_REPEAT:-3}
+      BARK_RED_REPEAT_GAP_SECONDS: ${BARK_RED_REPEAT_GAP_SECONDS:-1.2}
+      BARK_YELLOW_LEVEL: ${BARK_YELLOW_LEVEL:-critical}
+      BARK_YELLOW_VOLUME: ${BARK_YELLOW_VOLUME:-4}
+      BARK_YELLOW_SOUND: ${BARK_YELLOW_SOUND:-alarm}
+      BARK_YELLOW_REPEAT: ${BARK_YELLOW_REPEAT:-2}
+      BARK_YELLOW_REPEAT_GAP_SECONDS: ${BARK_YELLOW_REPEAT_GAP_SECONDS:-1}
+      BARK_BLUE_LEVEL: ${BARK_BLUE_LEVEL:-timeSensitive}
+      BARK_BLUE_VOLUME: ${BARK_BLUE_VOLUME:-}
+      BARK_BLUE_SOUND: ${BARK_BLUE_SOUND:-alarm}
+      BARK_BLUE_REPEAT: ${BARK_BLUE_REPEAT:-1}
+      BARK_BLUE_REPEAT_GAP_SECONDS: ${BARK_BLUE_REPEAT_GAP_SECONDS:-0}
+      BARK_BASE_URL: ${BARK_BASE_URL:-http://bark-server:18762}
+      EEW_AUTH_TOKEN: ${EEW_AUTH_TOKEN:-}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-}
+      EEW_DATA_DIR: /data
+    volumes:
+      - ./data:/data
+
+  bark-server:
+    image: ghcr.io/finb/bark-server:latest
+    container_name: raspi-eew-bark
+    restart: unless-stopped
+    command: ["bark-server", "--addr", "0.0.0.0:18762", "--data", "/data"]
+    ports:
+      - "${BARK_HOST_PORT:-18762}:18762"
+    volumes:
+      - ./bark-data:/data
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: raspi-eew-cloudflared
+    restart: unless-stopped
+    profiles:
+      - tunnel
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARED_TOKEN}
+    depends_on:
+      - eew-hub
+      - bark-server
