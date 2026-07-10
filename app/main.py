@@ -123,7 +123,10 @@ async def system_config() -> dict:
 async def update_system_config(payload: SystemConfigPatch) -> dict:
     current = get_system_config()
     updates = {key: value for key, value in payload.model_dump().items() if value is not None}
-    config = set_system_config({**current, **updates})
+    try:
+        config = set_system_config({**current, **updates})
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
     db.set_state("system_config", config)
     await listener.stop()
     await global_listener.stop()
@@ -243,7 +246,7 @@ async def test_push(payload: TestPushIn) -> dict:
             now,
         ),
     )
-    result = await send_bark(device["bark_key"], event, 0, 2, "轻微震感", 18)
+    result = await send_bark(device["bark_key"], event, 0, 2, "轻微震感", 18, repeat_override=1)
     db.execute(
         """
         INSERT INTO pushes

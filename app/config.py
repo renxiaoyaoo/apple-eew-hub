@@ -83,6 +83,8 @@ def default_system_config() -> dict[str, Any]:
 
 _system_config: dict[str, Any] = default_system_config()
 
+ALLOWED_BARK_LEVELS = {"critical", "timeSensitive", "active", "passive"}
+
 
 def get_system_config() -> dict[str, Any]:
     return {**default_system_config(), **_system_config}
@@ -95,9 +97,32 @@ def set_system_config(config: dict[str, Any]) -> dict[str, Any]:
     merged["global_min_magnitude"] = float(merged.get("global_min_magnitude") or 7.5)
     merged["alert_red_intensity"] = float(merged.get("alert_red_intensity") or 4)
     merged["alert_yellow_intensity"] = float(merged.get("alert_yellow_intensity") or 2)
+    if not 5 <= merged["global_min_magnitude"] <= 10:
+        raise ValueError("global_min_magnitude must be between 5 and 10")
+    if not 0 <= merged["alert_yellow_intensity"] <= 7:
+        raise ValueError("alert_yellow_intensity must be between 0 and 7")
+    if not 0 <= merged["alert_red_intensity"] <= 7:
+        raise ValueError("alert_red_intensity must be between 0 and 7")
+    if merged["alert_yellow_intensity"] > merged["alert_red_intensity"]:
+        raise ValueError("yellow intensity cannot be higher than red intensity")
+    if merged.get("wolfx_ws_base") and not str(merged["wolfx_ws_base"]).startswith(("ws://", "wss://")):
+        raise ValueError("wolfx_ws_base must start with ws:// or wss://")
+    for url in str(merged.get("wolfx_ws_url") or "").split(","):
+        url = url.strip()
+        if url and not url.startswith(("ws://", "wss://")):
+            raise ValueError("wolfx_ws_url values must start with ws:// or wss://")
+    if merged.get("global_source_url") and not str(merged["global_source_url"]).startswith(("ws://", "wss://")):
+        raise ValueError("global_source_url must start with ws:// or wss://")
+    for key in ("bark_red_level", "bark_yellow_level", "bark_blue_level"):
+        if merged.get(key) not in ALLOWED_BARK_LEVELS:
+            raise ValueError(f"{key} is not a supported Bark level")
     for key in ("bark_red_repeat", "bark_yellow_repeat", "bark_blue_repeat"):
         merged[key] = max(1, int(float(merged.get(key) or 1)))
+        if merged[key] > 5:
+            raise ValueError(f"{key} must be 5 or less")
     for key in ("bark_red_repeat_gap_seconds", "bark_yellow_repeat_gap_seconds", "bark_blue_repeat_gap_seconds"):
         merged[key] = max(0.0, float(merged.get(key) or 0))
+        if merged[key] > 5:
+            raise ValueError(f"{key} must be 5 seconds or less")
     _system_config = merged
     return get_system_config()

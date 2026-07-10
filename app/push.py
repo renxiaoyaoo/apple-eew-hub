@@ -67,12 +67,23 @@ def bark_payload(event: EarthquakeEvent, distance_km: float, intensity: float, t
     return f"{quote(title)}/{quote(body)}", query
 
 
-async def send_bark(bark_key: str, event: EarthquakeEvent, distance_km: float, intensity: float, text: str, arrival_seconds: int) -> dict:
+async def send_bark(
+    bark_key: str,
+    event: EarthquakeEvent,
+    distance_km: float,
+    intensity: float,
+    text: str,
+    arrival_seconds: int,
+    repeat_override: int | None = None,
+) -> dict:
     if not bark_key:
         return {"channel": "bark", "ok": False, "status_code": None, "latency_ms": 0, "message": "missing Bark key"}
     path, query = bark_payload(event, distance_km, intensity, text, arrival_seconds)
     url = f"{settings.bark_base_url.rstrip('/')}/{quote(bark_key.strip(), safe='')}/{path}"
     repeat, gap = bark_repeat(intensity)
+    if repeat_override is not None:
+        repeat = max(1, repeat_override)
+        gap = 0
     started = time.perf_counter()
     results = []
     try:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 
 from .db import Database
@@ -8,6 +9,25 @@ from .models import Decision, EarthquakeEvent, utc_now
 from .push import dispatch_push
 
 GLOBAL_MAJOR_MAGNITUDE = 7.5
+
+
+async def _dispatch_and_update_push(db: Database, push_id: int, device: dict, event: EarthquakeEvent, decision: Decision) -> None:
+    result = await dispatch_push(device, event, decision)
+    db.execute(
+        """
+        UPDATE pushes
+        SET channel = ?, ok = ?, status_code = ?, latency_ms = ?, message = ?
+        WHERE id = ?
+        """,
+        (
+            result["channel"],
+            int(result["ok"]),
+            result["status_code"],
+            result["latency_ms"],
+            result["message"],
+            push_id,
+        ),
+    )
 
 
 def normalize_device(row: dict) -> dict:
@@ -146,8 +166,7 @@ async def process_event(db: Database, event: EarthquakeEvent, override: dict | N
             ),
         )
         if decision.should_push and not already_pushed:
-            result = await dispatch_push(device, event, decision)
-            db.execute(
+            cur = db.execute(
                 """
                 INSERT INTO pushes
                 (event_id, device_id, channel, ok, status_code, latency_ms, message, created_at)
@@ -156,13 +175,14 @@ async def process_event(db: Database, event: EarthquakeEvent, override: dict | N
                 (
                     event.event_id,
                     device["id"],
-                    result["channel"],
-                    int(result["ok"]),
-                    result["status_code"],
-                    result["latency_ms"],
-                    result["message"],
+                    device["push_type"],
+                    0,
+                    None,
+                    0,
+                    "pending",
                     utc_now(),
                 ),
             )
+            asyncio.create_task(_dispatch_and_update_push(db, cur.lastrowid, device, event, decision))
     db.set_state("latest_alert", {"event": event.model_dump(), "decisions": [d.model_dump() for d in decisions]})
     return decisions

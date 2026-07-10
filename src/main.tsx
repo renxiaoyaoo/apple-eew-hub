@@ -335,6 +335,7 @@ function App() {
   const [alertStartedAt, setAlertStartedAt] = useState(Date.now());
   const [nowMs, setNowMs] = useState(Date.now());
   const [hideTestHistory, setHideTestHistory] = useState(false);
+  const [detailNotFound, setDetailNotFound] = useState(false);
   const [configDirty, setConfigDirty] = useState(false);
   const configDirtyRef = useRef(false);
   const [systemConfig, setSystemConfig] = useState<SystemConfig>(defaultSystemConfig);
@@ -350,10 +351,21 @@ function App() {
   });
 
   async function refresh() {
+    const nextAlert = detailEventId
+      ? api<LatestAlert>(`/api/alerts/${encodeURIComponent(detailEventId)}`)
+          .then((value) => {
+            setDetailNotFound(false);
+            return value;
+          })
+          .catch(() => {
+            setDetailNotFound(true);
+            return {};
+          })
+      : api<LatestAlert>("/api/latest-alert");
     const [nextStatus, nextDevices, nextLatest, nextLogs, nextConfig] = await Promise.all([
       api<Status>("/api/status"),
       api<Device[]>("/api/devices"),
-      detailEventId ? api<LatestAlert>(`/api/alerts/${encodeURIComponent(detailEventId)}`).catch(() => api<LatestAlert>("/api/latest-alert")) : api<LatestAlert>("/api/latest-alert"),
+      nextAlert,
       api<Logs>("/api/logs"),
       api<SystemConfig>("/api/system-config"),
     ]);
@@ -459,9 +471,11 @@ function App() {
       min_magnitude: Number(form.min_magnitude),
       max_distance_km: Number(form.max_distance_km),
       min_intensity: Number(form.min_intensity),
-      enabled: true,
-      receive_tests: true,
     };
+    if (!editingId) {
+      payload.enabled = true;
+      payload.receive_tests = true;
+    }
     if (key || !editingId) payload.bark_key = key;
 
     if (editingId) {
@@ -595,6 +609,18 @@ function App() {
       </div>
     </section>
   );
+
+  if (detailEventId && detailNotFound) {
+    return (
+      <main className="appShell detailShell">
+        <section className="panel loadingPanel">
+          <h1>预警不存在或已清除</h1>
+          <p>这条通知对应的地震记录已经找不到。可以返回首页查看最近通知。</p>
+          <a className="alertBack" href="/">返回首页</a>
+        </section>
+      </main>
+    );
+  }
 
   if (detailEventId && !latest.event) {
     return (

@@ -83,8 +83,11 @@ class WolfxListener:
 
     async def stop(self) -> None:
         self.running = False
+        tasks = self.tasks
         for task in self.tasks:
             task.cancel()
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
         self.tasks = []
 
     def _endpoints(self) -> list[tuple[str, str]]:
