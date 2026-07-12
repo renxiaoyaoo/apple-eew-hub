@@ -80,9 +80,10 @@ def should_record_global_event(db: Database, event: EarthquakeEvent) -> bool:
     devices = [normalize_device(row) for row in db.query("SELECT * FROM devices WHERE enabled = 1 ORDER BY id")]
     for device in devices:
         decision = decide_for_device(event, device)
-        if decision.distance_km <= device["max_distance_km"] and event.magnitude >= device["min_magnitude"]:
+        record_intensity = max(1, device["min_intensity"] * 0.8)
+        if decision.should_push:
             return True
-        if decision.intensity >= max(1, device["min_intensity"] * 0.8):
+        if decision.distance_km <= device["max_distance_km"] and event.magnitude >= device["min_magnitude"] and decision.intensity >= record_intensity:
             return True
     return False
 

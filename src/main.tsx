@@ -333,6 +333,10 @@ function pushPhaseText(phase?: string) {
   return "发现";
 }
 
+function barkLevelText(value: string) {
+  return barkLevelOptions.find(([level]) => level === value)?.[1] ?? value;
+}
+
 function canonicalLogEventId(eventId: string) {
   return eventId.replace(/^(\d{12}\.\d+)_\d+$/, "$1");
 }
@@ -490,6 +494,8 @@ function App() {
   const isFarGlobalBrief = event.source === "emsc_global" && decision.distance_km > (activeDevice?.max_distance_km ?? 500);
   const isEventHistoryPage = routePath === "/history";
   const isPushHistoryPage = routePath === "/pushes";
+  const isRulesPage = routePath === "/rules";
+  const isSettingsPage = routePath === "/settings";
 
   async function locate() {
     if (!navigator.geolocation) {
@@ -719,6 +725,16 @@ function App() {
           <b>{logs.pushes.length} 条</b>
           <small>查看测试通知和预警推送结果。</small>
         </a>
+        <a href="/rules">
+          <span>规则说明</span>
+          <b>入库 / 推送</b>
+          <small>看清楚哪些地震会记录，哪些会提醒。</small>
+        </a>
+        <a href="/settings">
+          <span>推送设置</span>
+          <b>红 / 黄 / 蓝</b>
+          <small>调整提醒等级、音量、铃声和重复次数。</small>
+        </a>
       </div>
     </section>
   );
@@ -731,6 +747,99 @@ function App() {
         <p>{description}</p>
       </div>
     </section>
+  );
+
+  const rulesPage = (
+    <main className="appShell">
+      {historyPageHeader("规则说明", "这里说明系统为什么记录一条地震，以及什么时候会给 Apple 设备发提醒。")}
+      <section className="panel rulesPanel">
+        <div className="rulesGrid">
+          <div>
+            <h2>哪些地震会进入历史</h2>
+            <ul>
+              <li>国内预警源收到的地震会记录，用于追踪报数、修正报和取消报。</li>
+              <li>全球 EMSC 事件只有两类会记录：全球特大地震 M{status?.global_quake_min_magnitude ?? 7.5}+，或对某台设备已经有本地相关烈度。</li>
+              <li>本地相关烈度指预计烈度至少接近设备阈值，不再只因为“距离在最大范围内”就记录全球小震。</li>
+              <li>测试通知和演练会记录，方便检查推送是否正常。</li>
+            </ul>
+          </div>
+          <div>
+            <h2>什么时候会推送</h2>
+            <ul>
+              <li>演练会推送给允许接收测试的设备。</li>
+              <li>全球特大地震 M{status?.global_quake_min_magnitude ?? 7.5}+ 会温和提醒，即使离你很远。</li>
+              <li>本地地震需要同时满足设备阈值：距离、震级和预计烈度。</li>
+              <li>如果预计烈度达到 2 以上，系统会按“可能有感”兜底提醒。</li>
+            </ul>
+          </div>
+          <div>
+            <h2>为什么 SUMBAWA M2.6 不应该记录</h2>
+            <ul>
+              <li>它是远距离全球小震，不是全球特大地震。</li>
+              <li>对成都附近设备的距离约 4672km，预计烈度为 0。</li>
+              <li>新规则下这类事件不会再进入历史，也不会推送。</li>
+              <li>已经存在的旧历史是规则收紧前记录的，可以在历史页清除。</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+      <section className="panel rulesPanel compactRules">
+        <h2>当前设备阈值</h2>
+        <div className="ruleDeviceList">
+          {devices.length ? devices.map((device) => (
+            <div key={device.id}>
+              <span>{device.name}</span>
+              <small>{device.default_city || "未设置城市"} · M{device.min_magnitude}+ · {device.max_distance_km}km 内 · 烈度 {device.min_intensity}+</small>
+            </div>
+          )) : <p>还没有 Apple 设备。</p>}
+        </div>
+      </section>
+    </main>
+  );
+
+  const settingsPage = (
+    <main className="appShell">
+      {historyPageHeader("推送设置", "按红、黄、蓝三档配置 Bark 提醒方式。下面会根据当前参数自动生成说明。")}
+      <section className="panel pushSummary">
+        <div>
+          <h2>当前提醒方式</h2>
+          <p>红色：烈度 ≥ {systemConfig.alert_red_intensity}。发现时发送 1 次 {barkLevelText(systemConfig.bark_red_level)}，音量 {systemConfig.bark_red_volume || "默认"}，铃声 {systemConfig.bark_red_sound}，并持续响；横波到达时再发 1 次“已到达”，不持续响。</p>
+          <p>黄色：烈度 ≥ {systemConfig.alert_yellow_intensity}。发现时发送 1 次 {barkLevelText(systemConfig.bark_yellow_level)}，音量 {systemConfig.bark_yellow_volume || "默认"}，铃声 {systemConfig.bark_yellow_sound}；横波到达时再发 1 次。</p>
+          <p>蓝色：低于黄色但仍需要提醒时使用。发现时发送 1 次 {barkLevelText(systemConfig.bark_blue_level)}，音量 {systemConfig.bark_blue_volume || "默认"}，铃声 {systemConfig.bark_blue_sound}；横波到达时再发 1 次。</p>
+        </div>
+      </section>
+      <section className="panel pushSettingsPanel">
+        <div className="sectionHead">
+          <div>
+            <h2>红黄蓝参数</h2>
+          </div>
+          <button className="compact" onClick={saveSystemConfig}>保存配置</button>
+        </div>
+        <div className="pushSettingGrid">
+          <div>
+            <h3>红色</h3>
+            <label>烈度 ≥<input value={systemConfig.alert_red_intensity} onChange={(event) => updateSystemConfig({ alert_red_intensity: Number(event.target.value) })} /></label>
+            <label>提醒方式<select value={systemConfig.bark_red_level} onChange={(event) => updateSystemConfig({ bark_red_level: event.target.value })}>{barkLevelOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+            <label>音量<input value={systemConfig.bark_red_volume} onChange={(event) => updateSystemConfig({ bark_red_volume: event.target.value })} /></label>
+            <label>铃声<input value={systemConfig.bark_red_sound} onChange={(event) => updateSystemConfig({ bark_red_sound: event.target.value })} /></label>
+          </div>
+          <div>
+            <h3>黄色</h3>
+            <label>烈度 ≥<input value={systemConfig.alert_yellow_intensity} onChange={(event) => updateSystemConfig({ alert_yellow_intensity: Number(event.target.value) })} /></label>
+            <label>提醒方式<select value={systemConfig.bark_yellow_level} onChange={(event) => updateSystemConfig({ bark_yellow_level: event.target.value })}>{barkLevelOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+            <label>音量<input value={systemConfig.bark_yellow_volume} onChange={(event) => updateSystemConfig({ bark_yellow_volume: event.target.value })} /></label>
+            <label>铃声<input value={systemConfig.bark_yellow_sound} onChange={(event) => updateSystemConfig({ bark_yellow_sound: event.target.value })} /></label>
+          </div>
+          <div>
+            <h3>蓝色</h3>
+            <label>提醒方式<select value={systemConfig.bark_blue_level} onChange={(event) => updateSystemConfig({ bark_blue_level: event.target.value })}>{barkLevelOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+            <label>音量<input value={systemConfig.bark_blue_volume} onChange={(event) => updateSystemConfig({ bark_blue_volume: event.target.value })} placeholder="可留空" /></label>
+            <label>铃声<input value={systemConfig.bark_blue_sound} onChange={(event) => updateSystemConfig({ bark_blue_sound: event.target.value })} /></label>
+          </div>
+        </div>
+        {message && <p className="message">{message}</p>}
+      </section>
+    </main>
   );
 
   if (detailEventId && detailNotFound) {
@@ -790,6 +899,9 @@ function App() {
       </main>
     );
   }
+
+  if (isRulesPage) return rulesPage;
+  if (isSettingsPage) return settingsPage;
 
   return (
     <main className="appShell">

@@ -85,6 +85,16 @@ async def pushes_page() -> FileResponse:
     return FileResponse(Path(__file__).resolve().parent.parent / "public" / "index.html")
 
 
+@app.get("/rules")
+async def rules_page() -> FileResponse:
+    return FileResponse(Path(__file__).resolve().parent.parent / "public" / "index.html")
+
+
+@app.get("/settings")
+async def settings_page() -> FileResponse:
+    return FileResponse(Path(__file__).resolve().parent.parent / "public" / "index.html")
+
+
 @app.get("/api/status")
 async def status() -> dict:
     config = get_system_config()

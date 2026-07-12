@@ -847,7 +847,7 @@ details[open] summary {
 
 .historyNav {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 10px;
 }
 
@@ -899,6 +899,89 @@ details[open] summary {
   margin-bottom: 0;
   color: #75685d;
   line-height: 1.55;
+}
+
+.rulesGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.rulesGrid > div,
+.ruleDeviceList > div {
+  border: 1px solid #dfd2c3;
+  border-radius: 12px;
+  background: #fffaf4;
+  padding: 14px;
+}
+
+.rulesGrid h2,
+.compactRules h2 {
+  margin-bottom: 10px;
+  font-size: 18px;
+}
+
+.rulesGrid ul {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding-left: 18px;
+  color: #5f534b;
+  line-height: 1.55;
+}
+
+.ruleDeviceList {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.ruleDeviceList div {
+  display: grid;
+  gap: 4px;
+}
+
+.ruleDeviceList span {
+  font-weight: 880;
+}
+
+.ruleDeviceList small {
+  color: #75685d;
+  font-weight: 650;
+}
+
+.pushSummary p {
+  margin: 0;
+  color: #5f534b;
+  line-height: 1.6;
+  font-weight: 650;
+}
+
+.pushSummary div {
+  display: grid;
+  gap: 10px;
+}
+
+.pushSettingGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.pushSettingGrid > div {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  border: 1px solid #dfd2c3;
+  border-radius: 12px;
+  background: #fffaf4;
+  padding: 14px;
+}
+
+.pushSettingGrid h3 {
+  margin: 0;
+  color: #4f4035;
+  font-size: 16px;
 }
 
 .historyList {
@@ -1032,6 +1115,8 @@ details[open] summary {
   .quick,
   .quick ol,
   .historyNav,
+  .rulesGrid,
+  .pushSettingGrid,
   .threeCards,
   .historyList,
   .eventLogItem,
@@ -1067,6 +1152,7 @@ details[open] summary {
   .two,
   .three,
   .pageHeader,
+  .ruleDeviceList,
   .detailGrid {
     grid-template-columns: 1fr;
   }
