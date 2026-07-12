@@ -9,7 +9,7 @@ from typing import Any
 import websockets
 
 from .config import get_system_config
-from .core import process_event
+from .core import decide_for_device, normalize_device, process_event
 from .db import Database
 from .models import EarthquakeEvent
 
@@ -36,7 +36,7 @@ def normalize_emsc_message(message: dict[str, Any]) -> EarthquakeEvent | None:
     coords = geometry.get("coordinates") or []
 
     magnitude = _pick(props, "mag", "magnitude")
-    if magnitude is None or float(magnitude) < get_system_config()["global_min_magnitude"]:
+    if magnitude is None:
         return None
 
     latitude = _pick(props, "lat", "latitude")
@@ -72,6 +72,19 @@ def normalize_emsc_message(message: dict[str, Any]) -> EarthquakeEvent | None:
         raw=message,
         test=False,
     )
+
+
+def should_record_global_event(db: Database, event: EarthquakeEvent) -> bool:
+    if event.magnitude >= get_system_config()["global_min_magnitude"]:
+        return True
+    devices = [normalize_device(row) for row in db.query("SELECT * FROM devices WHERE enabled = 1 ORDER BY id")]
+    for device in devices:
+        decision = decide_for_device(event, device)
+        if decision.distance_km <= device["max_distance_km"] and event.magnitude >= device["min_magnitude"]:
+            return True
+        if decision.intensity >= max(1, device["min_intensity"] * 0.8):
+            return True
+    return False
 
 
 class GlobalQuakeListener:
@@ -141,5 +154,5 @@ class GlobalQuakeListener:
                 except json.JSONDecodeError:
                     continue
                 event = normalize_emsc_message(message)
-                if event:
+                if event and should_record_global_event(self.db, event):
                     await process_event(self.db, event)

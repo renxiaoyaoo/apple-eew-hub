@@ -28,4 +28,13 @@ def test_normalize_emsc_message_accepts_standing_order_payload():
 
 
 def test_normalize_emsc_message_rejects_below_global_threshold():
-    assert normalize_emsc_message({"data": {"properties": {"mag": 6.9}}}) is None
+    event = normalize_emsc_message(
+        {
+            "data": {
+                "geometry": {"coordinates": [140.0, 35.0, 10]},
+                "properties": {"unid": "nearby", "mag": 6.9, "flynn_region": "Japan"},
+            }
+        }
+    )
+    assert event is not None
+    assert event.magnitude == 6.9
