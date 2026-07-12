@@ -73,7 +73,7 @@ def bark_payload(event: EarthquakeEvent, distance_km: float, intensity: float, t
         "icon": PUSH_ICON_URL,
         "isArchive": "1",
     }
-    if tier == "red":
+    if tier == "red" and arrival_seconds > 0:
         query["call"] = "1"
     if settings.public_base_url:
         query["url"] = settings.public_base_url.rstrip("/") + f"/event/{quote(event.event_id)}"

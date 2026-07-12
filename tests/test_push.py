@@ -27,6 +27,14 @@ def test_red_bark_payload_uses_call_and_critical_level():
     assert query["volume"] == "10"
 
 
+def test_red_arrival_payload_does_not_use_call():
+    path, query = bark_payload(event(), 80, 5, "强烈震感，注意避险", 0)
+
+    assert "%E6%A8%AA%E6%B3%A2%E5%B7%B2%E5%88%B0%E8%BE%BE" in path
+    assert query["level"] == "critical"
+    assert "call" not in query
+
+
 def test_blue_global_payload_does_not_use_local_countdown():
     path, query = bark_payload(event(source="emsc_global", magnitude=8.1), 9000, 1, "轻微震感", 0)
 
