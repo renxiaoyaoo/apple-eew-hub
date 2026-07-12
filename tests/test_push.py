@@ -1,3 +1,5 @@
+from urllib.parse import unquote
+
 from app.models import EarthquakeEvent
 from app.push import bark_payload
 
@@ -20,8 +22,10 @@ def event(**kwargs):
 
 def test_red_bark_payload_uses_call_and_critical_level():
     path, query = bark_payload(event(), 80, 5, "强烈震感，注意避险", 12)
+    decoded = unquote(path)
 
     assert path.startswith("%E5%BC%BA%E9%9C%87%E9%A2%84%E8%AD%A6")
+    assert "12秒后到达" in decoded
     assert query["level"] == "critical"
     assert query["call"] == "1"
     assert query["volume"] == "10"

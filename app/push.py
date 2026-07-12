@@ -57,6 +57,10 @@ def bark_title(event: EarthquakeEvent, intensity: float, arrival_seconds: int) -
     return f"地震提醒：{arrival_seconds}秒后到达" if arrival_seconds > 0 else "地震提醒：横波已到达"
 
 
+def arrival_text(arrival_seconds: int) -> str:
+    return f"{arrival_seconds}秒后到达" if arrival_seconds > 0 else "横波已到达"
+
+
 def bark_payload(event: EarthquakeEvent, distance_km: float, intensity: float, text: str, arrival_seconds: int) -> tuple[str, dict[str, str]]:
     tier = bark_tier(intensity)
     title = bark_title(event, intensity, arrival_seconds)
@@ -65,7 +69,7 @@ def bark_payload(event: EarthquakeEvent, distance_km: float, intensity: float, t
     else:
         body = (
             f"{event.epicenter} M{event.magnitude:.1f}，距你{distance_km:.0f}km，"
-            f"预计烈度{intensity:g}：{text}。勿乘电梯，保护头部。"
+            f"{arrival_text(arrival_seconds)}，预计烈度{intensity:g}：{text}。勿乘电梯，保护头部。"
         )
     query = {
         **bark_level(intensity),
@@ -126,7 +130,7 @@ def push_text(event: EarthquakeEvent, decision: Decision) -> tuple[str, str]:
     title = f"地震预警：{decision.arrival_seconds}秒后到达" if decision.arrival_seconds > 0 else "地震预警：横波已到达"
     body = (
         f"{event.epicenter} M{event.magnitude:.1f}，距你{decision.distance_km:.0f}km，"
-        f"预计烈度{decision.intensity:g}：{decision.intensity_text}。勿乘电梯，保护头部。"
+        f"{arrival_text(decision.arrival_seconds)}，预计烈度{decision.intensity:g}：{decision.intensity_text}。勿乘电梯，保护头部。"
     )
     return title, body
 
