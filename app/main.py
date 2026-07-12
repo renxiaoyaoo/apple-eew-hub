@@ -311,7 +311,7 @@ async def alert_by_id(event_id: str) -> dict:
     decisions = db.query(
         """
         SELECT devices.name AS device_name, d.distance_km, d.arrival_seconds,
-               d.intensity, d.intensity_text, d.status, d.should_push
+               d.intensity, d.intensity_text, d.status, d.should_push, d.created_at
         FROM decisions d
         JOIN devices ON devices.id = d.device_id
         WHERE d.event_id = ?

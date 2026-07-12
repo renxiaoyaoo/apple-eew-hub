@@ -52,6 +52,7 @@ type LatestAlert = {
     intensity: number;
     intensity_text: string;
     should_push: boolean;
+    created_at?: string;
   }>;
 };
 
@@ -300,6 +301,12 @@ function formatEventTime(value?: string) {
   });
 }
 
+function timeMs(value?: string) {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date.getTime();
+}
+
 function sourceName(name: string) {
   const names: Record<string, string> = {
     sc_eew: "四川地震预警",
@@ -461,7 +468,8 @@ function App() {
   useEffect(() => {
     setAlertStartedAt(Date.now());
   }, [event.event_id, event.epicenter, event.magnitude]);
-  const elapsedSeconds = Math.max(0, Math.floor((nowMs - alertStartedAt) / 1000));
+  const countdownBaseMs = timeMs(decision.created_at) ?? alertStartedAt;
+  const elapsedSeconds = Math.max(0, Math.floor((nowMs - countdownBaseMs) / 1000));
   const liveArrivalSeconds = Math.max(-90, decision.arrival_seconds - elapsedSeconds);
   const activeDevice = devices[0];
   const user = activeDevice ? { lat: activeDevice.latitude, lng: activeDevice.longitude } : chengdu;
