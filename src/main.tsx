@@ -709,31 +709,25 @@ function App() {
     <section className="panel historyNavPanel">
       <div className="sectionHead">
         <div>
-          <h2>历史记录</h2>
-          <p>地震信息和推送结果分开查看，首页不铺长列表。</p>
+          <h2>功能菜单</h2>
         </div>
-        <span>分开查看</span>
       </div>
       <div className="historyNav">
         <a href="/history">
           <span>地震历史</span>
           <b>{dedupedVisibleEvents.length} 条</b>
-          <small>查看系统收到并入库的地震事件。</small>
         </a>
         <a href="/pushes">
           <span>推送历史</span>
           <b>{logs.pushes.length} 条</b>
-          <small>查看测试通知和预警推送结果。</small>
         </a>
         <a href="/rules">
           <span>规则说明</span>
           <b>入库 / 推送</b>
-          <small>看清楚哪些地震会记录，哪些会提醒。</small>
         </a>
         <a href="/settings">
           <span>推送设置</span>
           <b>红 / 黄 / 蓝</b>
-          <small>调整提醒等级、音量、铃声和重复次数。</small>
         </a>
       </div>
     </section>
@@ -744,14 +738,14 @@ function App() {
       <a className="textButton" href="/">返回首页</a>
       <div>
         <h1>{title}</h1>
-        <p>{description}</p>
+        {description && <p>{description}</p>}
       </div>
     </section>
   );
 
   const rulesPage = (
     <main className="appShell">
-      {historyPageHeader("规则说明", "这里说明系统为什么记录一条地震，以及什么时候会给 Apple 设备发提醒。")}
+      {historyPageHeader("规则说明", "")}
       <section className="panel rulesPanel">
         <div className="rulesGrid">
           <div>
@@ -773,12 +767,12 @@ function App() {
             </ul>
           </div>
           <div>
-            <h2>为什么 SUMBAWA M2.6 不应该记录</h2>
+            <h2>不会记录的情况</h2>
             <ul>
-              <li>它是远距离全球小震，不是全球特大地震。</li>
-              <li>对成都附近设备的距离约 4672km，预计烈度为 0。</li>
-              <li>新规则下这类事件不会再进入历史，也不会推送。</li>
-              <li>已经存在的旧历史是规则收紧前记录的，可以在历史页清除。</li>
+              <li>远距离全球小震不会只因为被数据源收到就进入历史。</li>
+              <li>未达到全球特大震级，也没有本地相关烈度的事件不会记录。</li>
+              <li>设备已停用时，不会为这台设备产生推送判断。</li>
+              <li>取消报不会触发新的推送。</li>
             </ul>
           </div>
         </div>
@@ -799,7 +793,7 @@ function App() {
 
   const settingsPage = (
     <main className="appShell">
-      {historyPageHeader("推送设置", "按红、黄、蓝三档配置 Bark 提醒方式。下面会根据当前参数自动生成说明。")}
+      {historyPageHeader("推送设置", "")}
       <section className="panel pushSummary">
         <div>
           <h2>当前提醒方式</h2>
@@ -838,6 +832,59 @@ function App() {
           </div>
         </div>
         {message && <p className="message">{message}</p>}
+      </section>
+      <section className="panel configPanel">
+        <div className="sectionHead">
+          <div>
+            <h2>系统配置</h2>
+          </div>
+          <button className="compact" onClick={saveSystemConfig}>保存配置</button>
+        </div>
+        <div className="settingsList">
+          <div className="settingFull">
+            <h3>监听源</h3>
+            <div className="checkGrid">
+              <label className="checkLine">
+                <input type="checkbox" checked={systemConfig.wolfx_enabled} onChange={(event) => updateSystemConfig({ wolfx_enabled: event.target.checked })} />
+                国内 Wolfx 地震预警
+              </label>
+              {sourceOptions.map(([value, label]) => (
+                <label key={value} className="checkLine">
+                  <input type="checkbox" checked={systemConfig.wolfx_sources.includes(value)} onChange={() => toggleSource(value)} />
+                  {value} · {label}
+                </label>
+              ))}
+            </div>
+          </div>
+          <div className="settingFull">
+            <h3>全球特大地震</h3>
+            <div className="settingPair">
+              <label className="checkLine">
+                <input type="checkbox" checked={systemConfig.global_enabled} onChange={(event) => updateSystemConfig({ global_enabled: event.target.checked })} />
+                EMSC 全球 WebSocket
+              </label>
+              <label>
+                全球推送最低震级
+                <input value={systemConfig.global_min_magnitude} onChange={(event) => updateSystemConfig({ global_min_magnitude: Number(event.target.value) })} />
+              </label>
+            </div>
+          </div>
+          <div className="settingFull">
+            <h3>源地址</h3>
+            <label>
+              Wolfx 基础地址
+              <input value={systemConfig.wolfx_ws_base} onChange={(event) => updateSystemConfig({ wolfx_ws_base: event.target.value })} />
+            </label>
+            <label>
+              自定义 Wolfx 地址，可留空
+              <input value={systemConfig.wolfx_ws_url} onChange={(event) => updateSystemConfig({ wolfx_ws_url: event.target.value })} placeholder="多个地址用英文逗号分隔" />
+            </label>
+            <label>
+              EMSC WebSocket 地址
+              <input value={systemConfig.global_source_url} onChange={(event) => updateSystemConfig({ global_source_url: event.target.value })} />
+            </label>
+          </div>
+        </div>
       </section>
     </main>
   );
@@ -1000,103 +1047,6 @@ function App() {
           ))}
         </div>
       </section>
-
-      <details className="panel configPanel">
-        <summary className="configSummary">
-          <span>系统配置</span>
-          <small>配置一次即可，需要调整源或推送等级时再展开</small>
-        </summary>
-        <div className="sectionHead compactConfigHead">
-          <div>
-            <h2>系统配置</h2>
-          </div>
-          <button className="compact" onClick={saveSystemConfig}>保存配置</button>
-        </div>
-        <div className="settingsList">
-          <div className="settingFull">
-            <h3>监听源</h3>
-            <div className="checkGrid">
-              <label className="checkLine">
-              <input type="checkbox" checked={systemConfig.wolfx_enabled} onChange={(event) => updateSystemConfig({ wolfx_enabled: event.target.checked })} />
-              国内 Wolfx 地震预警
-              </label>
-              {sourceOptions.map(([value, label]) => (
-                <label key={value} className="checkLine">
-                  <input type="checkbox" checked={systemConfig.wolfx_sources.includes(value)} onChange={() => toggleSource(value)} />
-                  {value} · {label}
-                </label>
-              ))}
-            </div>
-          </div>
-          <div className="settingFull">
-            <h3>全球特大地震</h3>
-            <div className="settingPair">
-            <label className="checkLine">
-              <input type="checkbox" checked={systemConfig.global_enabled} onChange={(event) => updateSystemConfig({ global_enabled: event.target.checked })} />
-              EMSC 全球 WebSocket
-            </label>
-            <label>
-              全球推送最低震级
-              <input value={systemConfig.global_min_magnitude} onChange={(event) => updateSystemConfig({ global_min_magnitude: Number(event.target.value) })} />
-            </label>
-            </div>
-          </div>
-          <div className="settingFull">
-            <h3>通知等级</h3>
-            <div className="settingPair">
-              <label>红色烈度 ≥<input value={systemConfig.alert_red_intensity} onChange={(event) => updateSystemConfig({ alert_red_intensity: Number(event.target.value) })} /></label>
-              <label>黄色烈度 ≥<input value={systemConfig.alert_yellow_intensity} onChange={(event) => updateSystemConfig({ alert_yellow_intensity: Number(event.target.value) })} /></label>
-            </div>
-            <div className="settingPair">
-              <label>红色提醒方式<select value={systemConfig.bark_red_level} onChange={(event) => updateSystemConfig({ bark_red_level: event.target.value })}>{barkLevelOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-              <label>黄色提醒方式<select value={systemConfig.bark_yellow_level} onChange={(event) => updateSystemConfig({ bark_yellow_level: event.target.value })}>{barkLevelOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-              <label>蓝色提醒方式<select value={systemConfig.bark_blue_level} onChange={(event) => updateSystemConfig({ bark_blue_level: event.target.value })}>{barkLevelOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-              <label>红色重复<input value={systemConfig.bark_red_repeat} onChange={(event) => updateSystemConfig({ bark_red_repeat: Number(event.target.value) })} /></label>
-              <label>黄色重复<input value={systemConfig.bark_yellow_repeat} onChange={(event) => updateSystemConfig({ bark_yellow_repeat: Number(event.target.value) })} /></label>
-              <label>蓝色重复<input value={systemConfig.bark_blue_repeat} onChange={(event) => updateSystemConfig({ bark_blue_repeat: Number(event.target.value) })} /></label>
-            </div>
-          </div>
-        </div>
-        <details className="advancedConfig">
-          <summary>更多配置</summary>
-          <div className="settingsList">
-            <div>
-              <h3>源地址</h3>
-              <label>
-                Wolfx 基础地址
-                <input value={systemConfig.wolfx_ws_base} onChange={(event) => updateSystemConfig({ wolfx_ws_base: event.target.value })} />
-              </label>
-              <label>
-                自定义 Wolfx 地址，可留空
-                <input value={systemConfig.wolfx_ws_url} onChange={(event) => updateSystemConfig({ wolfx_ws_url: event.target.value })} placeholder="多个地址用英文逗号分隔" />
-              </label>
-              <label>
-                EMSC WebSocket 地址
-                <input value={systemConfig.global_source_url} onChange={(event) => updateSystemConfig({ global_source_url: event.target.value })} />
-              </label>
-            </div>
-            <div>
-              <h3>音量</h3>
-              <div className="settingPair">
-                <label>红色音量<input value={systemConfig.bark_red_volume} onChange={(event) => updateSystemConfig({ bark_red_volume: event.target.value })} /></label>
-                <label>黄色音量<input value={systemConfig.bark_yellow_volume} onChange={(event) => updateSystemConfig({ bark_yellow_volume: event.target.value })} /></label>
-                <label>蓝色音量<input value={systemConfig.bark_blue_volume} onChange={(event) => updateSystemConfig({ bark_blue_volume: event.target.value })} placeholder="可留空" /></label>
-              </div>
-            </div>
-            <div>
-              <h3>铃声</h3>
-              <div className="settingPair">
-                <label>红色铃声<input value={systemConfig.bark_red_sound} onChange={(event) => updateSystemConfig({ bark_red_sound: event.target.value })} /></label>
-                <label>黄色铃声<input value={systemConfig.bark_yellow_sound} onChange={(event) => updateSystemConfig({ bark_yellow_sound: event.target.value })} /></label>
-                <label>蓝色铃声<input value={systemConfig.bark_blue_sound} onChange={(event) => updateSystemConfig({ bark_blue_sound: event.target.value })} /></label>
-                <label>红色间隔<input value={systemConfig.bark_red_repeat_gap_seconds} onChange={(event) => updateSystemConfig({ bark_red_repeat_gap_seconds: Number(event.target.value) })} /></label>
-                <label>黄色间隔<input value={systemConfig.bark_yellow_repeat_gap_seconds} onChange={(event) => updateSystemConfig({ bark_yellow_repeat_gap_seconds: Number(event.target.value) })} /></label>
-                <label>蓝色间隔<input value={systemConfig.bark_blue_repeat_gap_seconds} onChange={(event) => updateSystemConfig({ bark_blue_repeat_gap_seconds: Number(event.target.value) })} /></label>
-              </div>
-            </div>
-          </div>
-        </details>
-      </details>
 
       {historyLinks}
     </main>
