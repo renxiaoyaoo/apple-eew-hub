@@ -84,6 +84,7 @@ type Logs = {
     epicenter?: string;
     magnitude?: number;
     test?: number | boolean;
+    push_phase?: string;
     channel: string;
     ok: number | boolean;
     status_code?: number;
@@ -317,6 +318,12 @@ function sourceName(name: string) {
 function sourceLabel(name: string) {
   const translated = sourceName(name);
   return translated === name ? name : `${name} · ${translated}`;
+}
+
+function pushPhaseText(phase?: string) {
+  if (phase === "arrival") return "到达";
+  if (phase === "test") return "测试";
+  return "发现";
 }
 
 function canonicalLogEventId(eventId: string) {
@@ -640,7 +647,7 @@ function App() {
       <div className="historyList">
         {visiblePushes.slice(0, limit ?? visiblePushes.length).map((item) => (
           <a key={item.id} className="historyItem" href={`/event/${encodeURIComponent(item.event_id)}`}>
-            <span>{item.test ? "测试" : "预警"} · {item.epicenter || "地震事件"}</span>
+            <span>{item.test ? "测试" : "预警"} · {pushPhaseText(item.push_phase)} · {item.epicenter || "地震事件"}</span>
             <small>{item.device_name || "Apple 设备"} · {item.ok ? "已发送" : "失败"} · {item.latency_ms ?? 0} ms</small>
             <b>{typeof item.magnitude === "number" ? `M${item.magnitude.toFixed(1)}` : item.channel}</b>
           </a>

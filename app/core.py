@@ -10,6 +10,7 @@ from .push import dispatch_push
 from .config import settings
 
 GLOBAL_MAJOR_MAGNITUDE = 7.5
+MAX_SCHEDULED_ARRIVAL_SECONDS = 1800
 
 
 async def _dispatch_and_update_push(db: Database, push_id: int, device: dict, event: EarthquakeEvent, decision: Decision) -> None:
@@ -29,6 +30,52 @@ async def _dispatch_and_update_push(db: Database, push_id: int, device: dict, ev
             push_id,
         ),
     )
+
+
+def _insert_pending_push(db: Database, event_id: str, device: dict, phase: str) -> int:
+    cur = db.execute(
+        """
+        INSERT INTO pushes
+        (event_id, device_id, push_phase, channel, ok, status_code, latency_ms, message, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            event_id,
+            device["id"],
+            phase,
+            device["push_type"],
+            0,
+            None,
+            0,
+            "pending",
+            utc_now(),
+        ),
+    )
+    return int(cur.lastrowid)
+
+
+def _has_push(db: Database, event_id: str, device_id: int, phase: str) -> bool:
+    return bool(
+        db.one(
+            "SELECT id FROM pushes WHERE event_id = ? AND device_id = ? AND push_phase = ? LIMIT 1",
+            (event_id, device_id, phase),
+        )
+    )
+
+
+def _should_schedule_arrival(event: EarthquakeEvent, decision: Decision) -> bool:
+    if event.source == "emsc_global" and decision.intensity <= 1:
+        return False
+    return 1 <= decision.arrival_seconds <= MAX_SCHEDULED_ARRIVAL_SECONDS
+
+
+async def _dispatch_arrival_push_later(db: Database, device: dict, event: EarthquakeEvent, decision: Decision) -> None:
+    await asyncio.sleep(decision.arrival_seconds)
+    if _has_push(db, event.event_id, device["id"], "arrival"):
+        return
+    arrival_decision = decision.model_copy(update={"arrival_seconds": 0, "status": "arrived"})
+    push_id = _insert_pending_push(db, event.event_id, device, "arrival")
+    await _dispatch_and_update_push(db, push_id, device, event, arrival_decision)
 
 
 def normalize_device(row: dict) -> dict:
@@ -141,10 +188,7 @@ async def process_event(db: Database, event: EarthquakeEvent, override: dict | N
     for device in devices:
         decision = decide_for_device(event, device, override)
         decisions.append(decision)
-        already_pushed = db.one(
-            "SELECT id FROM pushes WHERE event_id = ? AND device_id = ? LIMIT 1",
-            (event.event_id, device["id"]),
-        )
+        already_pushed = _has_push(db, event.event_id, device["id"], "initial")
         db.execute(
             """
             INSERT INTO decisions
@@ -162,29 +206,16 @@ async def process_event(db: Database, event: EarthquakeEvent, override: dict | N
                 decision.status,
                 int(decision.should_push),
                 decision.reason,
-                int(bool(already_pushed)),
+                int(already_pushed),
                 utc_now(),
             ),
         )
-        if decision.should_push and not already_pushed:
-            cur = db.execute(
-                """
-                INSERT INTO pushes
-                (event_id, device_id, channel, ok, status_code, latency_ms, message, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    event.event_id,
-                    device["id"],
-                    device["push_type"],
-                    0,
-                    None,
-                    0,
-                    "pending",
-                    utc_now(),
-                ),
-            )
-            asyncio.create_task(_dispatch_and_update_push(db, cur.lastrowid, device, event, decision))
+        if decision.should_push:
+            if not already_pushed:
+                push_id = _insert_pending_push(db, event.event_id, device, "initial")
+                asyncio.create_task(_dispatch_and_update_push(db, push_id, device, event, decision))
+            if _should_schedule_arrival(event, decision) and not _has_push(db, event.event_id, device["id"], "arrival"):
+                asyncio.create_task(_dispatch_arrival_push_later(db, device, event, decision))
     db.set_state("latest_alert", {"event": event.model_dump(), "decisions": [d.model_dump() for d in decisions]})
     db.prune_logs(settings.max_events, settings.max_decisions, settings.max_pushes)
     return decisions

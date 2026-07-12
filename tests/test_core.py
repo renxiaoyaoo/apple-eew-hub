@@ -1,4 +1,8 @@
-from app.core import decide_for_device, public_device
+import anyio
+import pytest
+
+from app.core import decide_for_device, process_event, public_device
+from app.db import Database
 from app.models import EarthquakeEvent
 
 
@@ -84,3 +88,50 @@ def test_public_device_redacts_push_secrets():
     assert "push_url" not in exposed
     assert exposed["bark_key_configured"] is True
     assert exposed["push_url_configured"] is True
+
+
+@pytest.mark.anyio
+async def test_process_event_sends_initial_and_arrival_push(tmp_path, monkeypatch):
+    async def fake_dispatch(device_row, event_row, decision):
+        return {
+            "channel": "bark",
+            "ok": True,
+            "status_code": 200,
+            "latency_ms": 1,
+            "message": f"sent {decision.arrival_seconds}",
+        }
+
+    monkeypatch.setattr("app.core.dispatch_push", fake_dispatch)
+    db = Database(tmp_path / "eew.sqlite3")
+    db.init()
+    db.execute(
+        """
+        INSERT INTO devices
+        (name, push_type, bark_key, push_url, default_city, latitude, longitude,
+         min_magnitude, max_distance_km, min_intensity, enabled, receive_tests, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            "iPhone",
+            "bark",
+            "fake-key",
+            "",
+            "成都",
+            30.58,
+            103.92,
+            4.5,
+            500,
+            2,
+            1,
+            1,
+            "now",
+            "now",
+        ),
+    )
+
+    await process_event(db, event(), {"distance_km": 199, "countdown_seconds": 1, "intensity": 3})
+    await anyio.sleep(1.2)
+
+    rows = db.query("SELECT push_phase, ok, message FROM pushes ORDER BY id")
+    assert [row["push_phase"] for row in rows] == ["initial", "arrival"]
+    assert [row["message"] for row in rows] == ["sent 1", "sent 0"]

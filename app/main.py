@@ -265,10 +265,10 @@ async def test_push(payload: TestPushIn) -> dict:
     db.execute(
         """
         INSERT INTO pushes
-        (event_id, device_id, channel, ok, status_code, latency_ms, message, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        (event_id, device_id, push_phase, channel, ok, status_code, latency_ms, message, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
-        (event.event_id, device["id"], "bark", int(result["ok"]), result["status_code"], result["latency_ms"], result["message"], utc_now()),
+        (event.event_id, device["id"], "test", "bark", int(result["ok"]), result["status_code"], result["latency_ms"], result["message"], utc_now()),
     )
     return result
 
@@ -353,7 +353,7 @@ async def logs() -> dict:
             """
             SELECT p.id, p.event_id, p.device_id, devices.name AS device_name,
                    events.epicenter, events.magnitude, events.test,
-                   p.channel, p.ok, p.status_code, p.latency_ms, p.message, p.created_at
+                   p.push_phase, p.channel, p.ok, p.status_code, p.latency_ms, p.message, p.created_at
             FROM pushes p
             LEFT JOIN devices ON devices.id = p.device_id
             LEFT JOIN events ON events.event_id = p.event_id

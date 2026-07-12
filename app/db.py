@@ -63,6 +63,7 @@ CREATE TABLE IF NOT EXISTS pushes (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   event_id TEXT NOT NULL,
   device_id INTEGER NOT NULL,
+  push_phase TEXT NOT NULL DEFAULT 'initial',
   channel TEXT NOT NULL,
   ok INTEGER NOT NULL,
   status_code INTEGER,
@@ -94,9 +95,12 @@ class Database:
             self._migrate(conn)
 
     def _migrate(self, conn: sqlite3.Connection) -> None:
-        columns = {row["name"] for row in conn.execute("PRAGMA table_info(devices)").fetchall()}
-        if "push_url" not in columns:
+        device_columns = {row["name"] for row in conn.execute("PRAGMA table_info(devices)").fetchall()}
+        if "push_url" not in device_columns:
             conn.execute("ALTER TABLE devices ADD COLUMN push_url TEXT NOT NULL DEFAULT ''")
+        push_columns = {row["name"] for row in conn.execute("PRAGMA table_info(pushes)").fetchall()}
+        if "push_phase" not in push_columns:
+            conn.execute("ALTER TABLE pushes ADD COLUMN push_phase TEXT NOT NULL DEFAULT 'initial'")
         conn.commit()
 
     def execute(self, sql: str, params: Iterable[Any] = ()) -> sqlite3.Cursor:
