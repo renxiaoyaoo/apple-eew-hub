@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import math
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+
+CHINA_TZ = timezone(timedelta(hours=8))
 
 
 def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
@@ -19,7 +21,7 @@ def parse_dt(value: str) -> datetime:
         value = value[:-1] + "+00:00"
     dt = datetime.fromisoformat(value)
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
+        dt = dt.replace(tzinfo=CHINA_TZ)
     return dt
 
 
@@ -30,7 +32,7 @@ def estimate_arrival_seconds(origin_time: str, distance_km: float, wave_speed_km
 
 def estimate_intensity(magnitude: float, distance_km: float, depth_km: float) -> float:
     hypocentral = max(1.0, math.sqrt(distance_km**2 + depth_km**2))
-    value = 1.8 * magnitude - 3.2 * math.log10(hypocentral) - 1.2
+    value = 1.7 * magnitude - 2.4 * math.log10(hypocentral) - 0.8
     return max(0.0, round(value, 1))
 
 

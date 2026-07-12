@@ -7,6 +7,7 @@ from .db import Database
 from .geo import estimate_arrival_seconds, estimate_intensity, haversine_km, intensity_text, wave_status
 from .models import Decision, EarthquakeEvent, utc_now
 from .push import dispatch_push
+from .config import settings
 
 GLOBAL_MAJOR_MAGNITUDE = 7.5
 
@@ -185,4 +186,5 @@ async def process_event(db: Database, event: EarthquakeEvent, override: dict | N
             )
             asyncio.create_task(_dispatch_and_update_push(db, cur.lastrowid, device, event, decision))
     db.set_state("latest_alert", {"event": event.model_dump(), "decisions": [d.model_dump() for d in decisions]})
+    db.prune_logs(settings.max_events, settings.max_decisions, settings.max_pushes)
     return decisions

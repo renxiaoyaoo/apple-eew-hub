@@ -323,7 +323,16 @@ async def alert_by_id(event_id: str) -> dict:
 @app.get("/api/logs")
 async def logs() -> dict:
     return {
-        "events": db.query("SELECT * FROM events ORDER BY updated_at DESC LIMIT 100"),
+        "events": db.query(
+            """
+            SELECT event_id, source, report_num, is_final, is_cancel, epicenter,
+                   latitude, longitude, magnitude, depth_km, origin_time, test,
+                   created_at, updated_at
+            FROM events
+            ORDER BY updated_at DESC
+            LIMIT 100
+            """
+        ),
         "decisions": db.query("SELECT * FROM decisions ORDER BY id DESC LIMIT 200"),
         "pushes": db.query(
             """

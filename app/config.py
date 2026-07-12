@@ -43,6 +43,9 @@ class Settings:
     bark_blue_sound: str = os.getenv("BARK_BLUE_SOUND", "alarm")
     bark_blue_repeat: int = int(os.getenv("BARK_BLUE_REPEAT", "1"))
     bark_blue_repeat_gap_seconds: float = float(os.getenv("BARK_BLUE_REPEAT_GAP_SECONDS", "0"))
+    max_events: int = int(os.getenv("EEW_MAX_EVENTS", "2000"))
+    max_decisions: int = int(os.getenv("EEW_MAX_DECISIONS", "5000"))
+    max_pushes: int = int(os.getenv("EEW_MAX_PUSHES", "2000"))
 
     @property
     def db_path(self) -> Path:

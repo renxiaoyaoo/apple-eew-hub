@@ -874,6 +874,64 @@ details[open] summary {
   align-self: center;
 }
 
+.eventLogList {
+  display: grid;
+  gap: 8px;
+}
+
+.eventLogItem {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) auto minmax(150px, .9fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 12px;
+  border: 1px solid #dfd2c3;
+  border-radius: 10px;
+  background: #fffaf4;
+  color: #2f2a24;
+  text-decoration: none;
+}
+
+.eventLogItem span,
+.eventLogItem b {
+  font-weight: 850;
+}
+
+.eventLogItem small {
+  color: #75685d;
+}
+
+.eventLogItem div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.eventLogItem div span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.eventLogItem em {
+  justify-self: end;
+  border-radius: 999px;
+  padding: 5px 8px;
+  font-style: normal;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.eventLogItem em.pushed {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.eventLogItem em.notPushed {
+  background: #f1e8de;
+  color: #6f6258;
+}
+
 .toggle {
   display: flex;
   grid-auto-flow: column;
@@ -913,6 +971,7 @@ details[open] summary {
   .quick ol,
   .threeCards,
   .historyList,
+  .eventLogItem,
   .deviceList,
   .configGrid,
   .detailLayout {

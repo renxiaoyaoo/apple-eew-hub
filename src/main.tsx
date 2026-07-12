@@ -51,6 +51,27 @@ type LatestAlert = {
 };
 
 type Logs = {
+  events: Array<{
+    event_id: string;
+    source: string;
+    epicenter: string;
+    magnitude: number;
+    depth_km: number;
+    origin_time: string;
+    test?: number | boolean;
+    updated_at: string;
+  }>;
+  decisions: Array<{
+    event_id: string;
+    distance_km: number;
+    arrival_seconds: number;
+    intensity: number;
+    intensity_text: string;
+    should_push: number | boolean;
+    reason: string;
+    pushed: number | boolean;
+    created_at: string;
+  }>;
   pushes: Array<{
     id: number;
     event_id: string;
@@ -328,7 +349,7 @@ function App() {
   const [status, setStatus] = useState<Status | null>(null);
   const [devices, setDevices] = useState<Device[]>([]);
   const [latest, setLatest] = useState<LatestAlert>({});
-  const [logs, setLogs] = useState<Logs>({ pushes: [] });
+  const [logs, setLogs] = useState<Logs>({ events: [], decisions: [], pushes: [] });
   const [message, setMessage] = useState("");
   const [editingId, setEditingId] = useState<number | null>(null);
   const [selectedDrill, setSelectedDrill] = useState(drillPresets[0].id);
@@ -434,6 +455,8 @@ function App() {
   const sourceStates = Object.entries(status?.listener.sources ?? {});
   const connectedSources = sourceStates.filter(([, state]) => state.connected).length;
   const visiblePushes = logs.pushes.filter((item) => !hideTestHistory || !item.test);
+  const visibleEvents = logs.events.filter((item) => !hideTestHistory || !item.test);
+  const decisionByEvent = new Map(logs.decisions.map((item) => [item.event_id, item]));
   const displayCity = activeDevice?.default_city || "成都";
   const isFarGlobalBrief = event.source === "emsc_global" && decision.distance_km > (activeDevice?.max_distance_km ?? 500);
 
@@ -606,6 +629,37 @@ function App() {
             <b>{typeof item.magnitude === "number" ? `M${item.magnitude.toFixed(1)}` : item.channel}</b>
           </a>
         ))}
+      </div>
+    </section>
+  );
+
+  const eventLogSection = (
+    <section className="panel eventLogPanel">
+      <div className="sectionHead">
+        <div>
+          <h2>收到的地震信息</h2>
+        </div>
+        <span>{visibleEvents.length} 条</span>
+      </div>
+      <div className="eventLogList">
+        {visibleEvents.slice(0, 12).map((item) => {
+          const itemDecision = decisionByEvent.get(item.event_id);
+          const shouldPush = Boolean(itemDecision?.should_push);
+          const decisionText = itemDecision
+            ? `${Math.round(itemDecision.distance_km)}km · 烈度 ${itemDecision.intensity} · ${itemDecision.intensity_text}`
+            : "未计算";
+          return (
+            <a key={item.event_id} className="eventLogItem" href={`/event/${encodeURIComponent(item.event_id)}`}>
+              <div>
+                <span>{item.epicenter}</span>
+                <small>{sourceName(item.source)} · {formatEventTime(item.origin_time)}</small>
+              </div>
+              <b>M{item.magnitude.toFixed(1)}</b>
+              <small>{decisionText}</small>
+              <em className={shouldPush ? "pushed" : "notPushed"}>{shouldPush ? "已推送" : itemDecision?.reason || "未推送"}</em>
+            </a>
+          );
+        })}
       </div>
     </section>
   );
@@ -838,6 +892,8 @@ function App() {
           </div>
         </details>
       </details>
+
+      {eventLogSection}
 
       {historySection}
     </main>

@@ -128,3 +128,32 @@ class Database:
         if not row:
             return default
         return json.loads(row["value"])
+
+    def prune_logs(self, max_events: int, max_decisions: int, max_pushes: int) -> None:
+        self.execute(
+            """
+            DELETE FROM decisions
+            WHERE id NOT IN (
+              SELECT id FROM decisions ORDER BY id DESC LIMIT ?
+            )
+            """,
+            (max_decisions,),
+        )
+        self.execute(
+            """
+            DELETE FROM pushes
+            WHERE id NOT IN (
+              SELECT id FROM pushes ORDER BY id DESC LIMIT ?
+            )
+            """,
+            (max_pushes,),
+        )
+        self.execute(
+            """
+            DELETE FROM events
+            WHERE event_id NOT IN (
+              SELECT event_id FROM events ORDER BY updated_at DESC LIMIT ?
+            )
+            """,
+            (max_events,),
+        )
