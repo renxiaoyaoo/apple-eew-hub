@@ -839,6 +839,68 @@ details[open] summary {
   margin-top: 16px;
 }
 
+.historyNavPanel .sectionHead p {
+  margin-top: 4px;
+  color: #75685d;
+  font-size: 14px;
+}
+
+.historyNav {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.historyNav a {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 12px;
+  padding: 14px;
+  border: 1px solid #dfd2c3;
+  border-radius: 12px;
+  background: #fffaf4;
+  color: #2f2a24;
+  text-decoration: none;
+}
+
+.historyNav span {
+  font-size: 17px;
+  font-weight: 880;
+}
+
+.historyNav b {
+  align-self: start;
+  border-radius: 999px;
+  background: #f1e8de;
+  padding: 5px 8px;
+  color: #5b3a2e;
+  font-size: 13px;
+}
+
+.historyNav small {
+  grid-column: 1 / -1;
+  color: #75685d;
+  font-weight: 650;
+}
+
+.pageHeader {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 16px;
+}
+
+.pageHeader h1 {
+  margin-bottom: 6px;
+  font-size: clamp(28px, 3.4vw, 42px);
+}
+
+.pageHeader p {
+  margin-bottom: 0;
+  color: #75685d;
+  line-height: 1.55;
+}
+
 .historyList {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -969,6 +1031,7 @@ details[open] summary {
   .heroBlock,
   .quick,
   .quick ol,
+  .historyNav,
   .threeCards,
   .historyList,
   .eventLogItem,
@@ -1003,6 +1066,7 @@ details[open] summary {
 
   .two,
   .three,
+  .pageHeader,
   .detailGrid {
     grid-template-columns: 1fr;
   }

@@ -10,6 +10,11 @@ type Status = {
   sources: string[];
   device_count: number;
   global_quake_min_magnitude?: number;
+  retention?: {
+    max_events: number;
+    max_decisions: number;
+    max_pushes: number;
+  };
   alert_levels?: {
     red_intensity: number;
     yellow_intensity: number;
@@ -342,6 +347,7 @@ function FitMap({ points }: { points: [number, number][] }) {
 }
 
 function App() {
+  const [routePath] = useState(() => window.location.pathname);
   const [detailEventId] = useState(() => {
     const eventPath = window.location.pathname.match(/^\/event\/([^/]+)$/);
     return eventPath?.[1] ? decodeURIComponent(eventPath[1]) : new URLSearchParams(window.location.search).get("event_id") || "";
@@ -459,6 +465,8 @@ function App() {
   const decisionByEvent = new Map(logs.decisions.map((item) => [item.event_id, item]));
   const displayCity = activeDevice?.default_city || "成都";
   const isFarGlobalBrief = event.source === "emsc_global" && decision.distance_km > (activeDevice?.max_distance_km ?? 500);
+  const isEventHistoryPage = routePath === "/history";
+  const isPushHistoryPage = routePath === "/pushes";
 
   async function locate() {
     if (!navigator.geolocation) {
@@ -610,11 +618,11 @@ function App() {
     </section>
   );
 
-  const historySection = (
+  const renderPushHistorySection = (limit?: number) => (
     <section className="panel historyPanel">
       <div className="sectionHead">
         <div>
-          <h2>最近通知</h2>
+          <h2>推送历史</h2>
         </div>
         <div className="historyActions">
           <label className="toggle"><input type="checkbox" checked={hideTestHistory} onChange={(event) => setHideTestHistory(event.target.checked)} />隐藏测试</label>
@@ -622,7 +630,7 @@ function App() {
         </div>
       </div>
       <div className="historyList">
-        {visiblePushes.slice(0, 8).map((item) => (
+        {visiblePushes.slice(0, limit ?? visiblePushes.length).map((item) => (
           <a key={item.id} className="historyItem" href={`/event/${encodeURIComponent(item.event_id)}`}>
             <span>{item.test ? "测试" : "预警"} · {item.epicenter || "地震事件"}</span>
             <small>{item.device_name || "Apple 设备"} · {item.ok ? "已发送" : "失败"} · {item.latency_ms ?? 0} ms</small>
@@ -633,16 +641,19 @@ function App() {
     </section>
   );
 
-  const eventLogSection = (
+  const renderEventLogSection = (limit?: number) => (
     <section className="panel eventLogPanel">
       <div className="sectionHead">
         <div>
-          <h2>收到的地震信息</h2>
+          <h2>地震历史</h2>
         </div>
-        <span>{visibleEvents.length} 条</span>
+        <div className="historyActions">
+          <label className="toggle"><input type="checkbox" checked={hideTestHistory} onChange={(event) => setHideTestHistory(event.target.checked)} />隐藏测试</label>
+          <span>{visibleEvents.length} 条</span>
+        </div>
       </div>
       <div className="eventLogList">
-        {visibleEvents.slice(0, 12).map((item) => {
+        {visibleEvents.slice(0, limit ?? visibleEvents.length).map((item) => {
           const itemDecision = decisionByEvent.get(item.event_id);
           const shouldPush = Boolean(itemDecision?.should_push);
           const decisionText = itemDecision
@@ -660,6 +671,40 @@ function App() {
             </a>
           );
         })}
+      </div>
+    </section>
+  );
+
+  const historyLinks = (
+    <section className="panel historyNavPanel">
+      <div className="sectionHead">
+        <div>
+          <h2>历史记录</h2>
+          <p>地震信息和推送结果分开查看，首页不铺长列表。</p>
+        </div>
+        <span>自动保留最近 {status?.retention?.max_events ?? 2000} 条地震</span>
+      </div>
+      <div className="historyNav">
+        <a href="/history">
+          <span>地震历史</span>
+          <b>{logs.events.length} 条</b>
+          <small>查看系统收到并入库的地震事件。</small>
+        </a>
+        <a href="/pushes">
+          <span>推送历史</span>
+          <b>{logs.pushes.length} 条</b>
+          <small>查看测试通知和预警推送结果。</small>
+        </a>
+      </div>
+    </section>
+  );
+
+  const historyPageHeader = (title: string, description: string) => (
+    <section className="pageHeader panel">
+      <a className="textButton" href="/">返回首页</a>
+      <div>
+        <h1>{title}</h1>
+        <p>{description}</p>
       </div>
     </section>
   );
@@ -694,6 +739,30 @@ function App() {
           {alertCard}
           {mapSection}
         </section>
+      </main>
+    );
+  }
+
+  if (isEventHistoryPage) {
+    return (
+      <main className="appShell">
+        {historyPageHeader(
+          "地震历史",
+          `只记录达到本地相关或全球 M${status?.global_quake_min_magnitude ?? 7.5}+ 条件的事件，并自动裁剪最近 ${status?.retention?.max_events ?? 2000} 条。`,
+        )}
+        {renderEventLogSection()}
+      </main>
+    );
+  }
+
+  if (isPushHistoryPage) {
+    return (
+      <main className="appShell">
+        {historyPageHeader(
+          "推送历史",
+          `测试通知和真实预警都在这里查看，系统自动保留最近 ${status?.retention?.max_pushes ?? 2000} 条推送记录。`,
+        )}
+        {renderPushHistorySection()}
       </main>
     );
   }
@@ -893,9 +962,7 @@ function App() {
         </details>
       </details>
 
-      {eventLogSection}
-
-      {historySection}
+      {historyLinks}
     </main>
   );
 }

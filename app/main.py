@@ -75,6 +75,16 @@ async def event_page(event_id: str) -> FileResponse:
     return FileResponse(Path(__file__).resolve().parent.parent / "public" / "index.html")
 
 
+@app.get("/history")
+async def history_page() -> FileResponse:
+    return FileResponse(Path(__file__).resolve().parent.parent / "public" / "index.html")
+
+
+@app.get("/pushes")
+async def pushes_page() -> FileResponse:
+    return FileResponse(Path(__file__).resolve().parent.parent / "public" / "index.html")
+
+
 @app.get("/api/status")
 async def status() -> dict:
     config = get_system_config()
@@ -94,6 +104,11 @@ async def status() -> dict:
         "wolfx_configured": bool(config["wolfx_ws_url"] or config["wolfx_ws_base"]),
         "wolfx_ws_base": config["wolfx_ws_base"],
         "global_quake_min_magnitude": config["global_min_magnitude"],
+        "retention": {
+            "max_events": settings.max_events,
+            "max_decisions": settings.max_decisions,
+            "max_pushes": settings.max_pushes,
+        },
         "alert_levels": {
             "red_intensity": config["alert_red_intensity"],
             "yellow_intensity": config["alert_yellow_intensity"],
