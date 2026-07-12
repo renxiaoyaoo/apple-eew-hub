@@ -27,3 +27,23 @@ def test_normalize_wolfx_message_accepts_common_fields():
 
 def test_normalize_wolfx_message_rejects_incomplete_payload():
     assert normalize_wolfx_message({"type": "heartbeat"}) is None
+
+
+def test_normalize_wolfx_message_strips_report_suffix_from_event_id():
+    event = normalize_wolfx_message(
+        {
+            "type": "sc_eew",
+            "Data": {
+                "EventID": "202607130103.0001_2",
+                "ReportNum": 2,
+                "HypoCenter": "四川阿坝州小金县",
+                "Latitude": 31.0,
+                "Longitude": 102.4,
+                "Magnitude": 4.3,
+                "Depth": 10,
+                "OriginTime": "2026-07-13 01:03:28",
+            },
+        }
+    )
+    assert event is not None
+    assert event.event_id == "202607130103.0001"

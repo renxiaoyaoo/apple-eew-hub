@@ -319,6 +319,10 @@ function sourceLabel(name: string) {
   return translated === name ? name : `${name} · ${translated}`;
 }
 
+function canonicalLogEventId(eventId: string) {
+  return eventId.replace(/^(\d{12}\.\d+)_\d+$/, "$1");
+}
+
 function parseBarkKey(value: string) {
   const trimmed = value.trim();
   try {
@@ -462,6 +466,10 @@ function App() {
   const connectedSources = sourceStates.filter(([, state]) => state.connected).length;
   const visiblePushes = logs.pushes.filter((item) => !hideTestHistory || !item.test);
   const visibleEvents = logs.events.filter((item) => !hideTestHistory || !item.test);
+  const dedupedVisibleEvents = visibleEvents.filter((item, index, items) => {
+    const key = canonicalLogEventId(item.event_id);
+    return items.findIndex((candidate) => canonicalLogEventId(candidate.event_id) === key) === index;
+  });
   const decisionByEvent = new Map(logs.decisions.map((item) => [item.event_id, item]));
   const displayCity = activeDevice?.default_city || "成都";
   const isFarGlobalBrief = event.source === "emsc_global" && decision.distance_km > (activeDevice?.max_distance_km ?? 500);
@@ -649,12 +657,13 @@ function App() {
         </div>
         <div className="historyActions">
           <label className="toggle"><input type="checkbox" checked={hideTestHistory} onChange={(event) => setHideTestHistory(event.target.checked)} />隐藏测试</label>
-          <span>{visibleEvents.length} 条</span>
+          <span>{dedupedVisibleEvents.length} 条</span>
         </div>
       </div>
       <div className="eventLogList">
-        {visibleEvents.slice(0, limit ?? visibleEvents.length).map((item) => {
-          const itemDecision = decisionByEvent.get(item.event_id);
+        {dedupedVisibleEvents.slice(0, limit ?? dedupedVisibleEvents.length).map((item) => {
+          const canonicalId = canonicalLogEventId(item.event_id);
+          const itemDecision = decisionByEvent.get(item.event_id) ?? decisionByEvent.get(canonicalId);
           const shouldPush = Boolean(itemDecision?.should_push);
           const decisionText = itemDecision
             ? `${Math.round(itemDecision.distance_km)}km · 烈度 ${itemDecision.intensity} · ${itemDecision.intensity_text}`
@@ -682,12 +691,12 @@ function App() {
           <h2>历史记录</h2>
           <p>地震信息和推送结果分开查看，首页不铺长列表。</p>
         </div>
-        <span>自动保留最近 {status?.retention?.max_events ?? 2000} 条地震</span>
+        <span>分开查看</span>
       </div>
       <div className="historyNav">
         <a href="/history">
           <span>地震历史</span>
-          <b>{logs.events.length} 条</b>
+          <b>{dedupedVisibleEvents.length} 条</b>
           <small>查看系统收到并入库的地震事件。</small>
         </a>
         <a href="/pushes">
@@ -748,7 +757,7 @@ function App() {
       <main className="appShell">
         {historyPageHeader(
           "地震历史",
-          `只记录达到本地相关或全球 M${status?.global_quake_min_magnitude ?? 7.5}+ 条件的事件，并自动裁剪最近 ${status?.retention?.max_events ?? 2000} 条。`,
+          `只记录本地相关事件和全球 M${status?.global_quake_min_magnitude ?? 7.5}+ 特大地震，不收集每一次全球小震。`,
         )}
         {renderEventLogSection()}
       </main>
@@ -760,7 +769,7 @@ function App() {
       <main className="appShell">
         {historyPageHeader(
           "推送历史",
-          `测试通知和真实预警都在这里查看，系统自动保留最近 ${status?.retention?.max_pushes ?? 2000} 条推送记录。`,
+          "测试通知和真实预警都在这里查看。",
         )}
         {renderPushHistorySection()}
       </main>

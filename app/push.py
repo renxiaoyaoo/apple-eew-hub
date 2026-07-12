@@ -46,12 +46,23 @@ def bark_repeat(intensity: float) -> tuple[int, float]:
     return int(config[f"bark_{tier}_repeat"]), float(config[f"bark_{tier}_repeat_gap_seconds"])
 
 
-def bark_payload(event: EarthquakeEvent, distance_km: float, intensity: float, text: str, arrival_seconds: int) -> tuple[str, dict[str, str]]:
+def bark_title(event: EarthquakeEvent, intensity: float, arrival_seconds: int) -> str:
+    tier = bark_tier(intensity)
     if event.source == "emsc_global" and intensity <= 1:
-        title = f"全球特大地震预警：M{event.magnitude:.1f}"
+        return f"全球特大地震提醒：M{event.magnitude:.1f}"
+    if tier == "red":
+        return f"强震预警：{arrival_seconds}秒后到达" if arrival_seconds > 0 else "强震预警：横波已到达"
+    if tier == "yellow":
+        return f"地震预警：{arrival_seconds}秒后到达" if arrival_seconds > 0 else "地震预警：横波已到达"
+    return f"地震提醒：{arrival_seconds}秒后到达" if arrival_seconds > 0 else "地震提醒：横波已到达"
+
+
+def bark_payload(event: EarthquakeEvent, distance_km: float, intensity: float, text: str, arrival_seconds: int) -> tuple[str, dict[str, str]]:
+    tier = bark_tier(intensity)
+    title = bark_title(event, intensity, arrival_seconds)
+    if event.source == "emsc_global" and intensity <= 1:
         body = f"{event.epicenter}，距你约{distance_km:.0f}km。远距离预警提醒，不显示本地倒计时。"
     else:
-        title = f"地震预警：{arrival_seconds}秒后到达" if arrival_seconds > 0 else "地震预警：横波已到达"
         body = (
             f"{event.epicenter} M{event.magnitude:.1f}，距你{distance_km:.0f}km，"
             f"预计烈度{intensity:g}：{text}。勿乘电梯，保护头部。"
@@ -62,6 +73,8 @@ def bark_payload(event: EarthquakeEvent, distance_km: float, intensity: float, t
         "icon": PUSH_ICON_URL,
         "isArchive": "1",
     }
+    if tier == "red":
+        query["call"] = "1"
     if settings.public_base_url:
         query["url"] = settings.public_base_url.rstrip("/") + f"/event/{quote(event.event_id)}"
     return f"{quote(title)}/{quote(body)}", query

@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 from datetime import datetime, timezone
 from typing import Any
 
@@ -14,6 +15,7 @@ from .db import Database
 from .models import EarthquakeEvent
 
 LOGGER = logging.getLogger(__name__)
+REPORT_SUFFIX_RE = re.compile(r"^(\d{12}\.\d+)_\d+$")
 
 
 def _pick(data: dict[str, Any], *keys: str, default: Any = None) -> Any:
@@ -21,6 +23,11 @@ def _pick(data: dict[str, Any], *keys: str, default: Any = None) -> Any:
         if key in data and data[key] not in (None, ""):
             return data[key]
     return default
+
+
+def canonical_wolfx_event_id(event_id: str) -> str:
+    match = REPORT_SUFFIX_RE.match(event_id)
+    return match.group(1) if match else event_id
 
 
 def normalize_wolfx_message(data: dict[str, Any], source_hint: str = "") -> EarthquakeEvent | None:
@@ -48,6 +55,8 @@ def normalize_wolfx_message(data: dict[str, Any], source_hint: str = "") -> Eart
         origin_time = datetime.now(timezone.utc).isoformat()
     if not event_id:
         event_id = f"{source}:{origin_time}:{latitude}:{longitude}:{magnitude}"
+    else:
+        event_id = canonical_wolfx_event_id(event_id)
     return EarthquakeEvent(
         event_id=event_id,
         source=source,

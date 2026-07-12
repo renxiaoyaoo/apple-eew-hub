@@ -29,7 +29,7 @@ class Settings:
     alert_red_intensity: float = float(os.getenv("ALERT_RED_INTENSITY", "4"))
     alert_yellow_intensity: float = float(os.getenv("ALERT_YELLOW_INTENSITY", "2"))
     bark_red_level: str = os.getenv("BARK_RED_LEVEL", "critical")
-    bark_red_volume: str = os.getenv("BARK_RED_VOLUME", "8")
+    bark_red_volume: str = os.getenv("BARK_RED_VOLUME", "10")
     bark_red_sound: str = os.getenv("BARK_RED_SOUND", "alarm")
     bark_red_repeat: int = int(os.getenv("BARK_RED_REPEAT", "3"))
     bark_red_repeat_gap_seconds: float = float(os.getenv("BARK_RED_REPEAT_GAP_SECONDS", "1.2"))
