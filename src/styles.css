@@ -288,6 +288,10 @@ details[open] summary {
 .sectionHead span,
 .alertHead span,
 .alertHead b {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
   border-radius: 8px;
   background: #f1e8de;
   padding: 7px 10px;
