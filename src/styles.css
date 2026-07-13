@@ -25,7 +25,7 @@ input {
 
 button {
   border: 1px solid #7c3f2d;
-  border-radius: 10px;
+  border-radius: 8px;
   background: #8a4b35;
   color: #fff;
   padding: 11px 15px;
@@ -56,7 +56,7 @@ button.compact {
 }
 
 .textButton {
-  border-radius: 10px;
+  border-radius: 8px;
   background: #3b3028;
   color: #fff;
   padding: 10px 13px;
@@ -98,7 +98,7 @@ select {
   border: 1px solid #d7c8b9;
   background: #fffdf9;
   color: #2f2a24;
-  border-radius: 10px;
+  border-radius: 8px;
   padding: 11px 12px;
   outline: 0;
 }
@@ -111,7 +111,7 @@ select:focus {
 
 details {
   border: 1px solid #dfd2c3;
-  border-radius: 10px;
+  border-radius: 8px;
   padding: 14px;
   background: #fbf7f1;
 }
@@ -288,7 +288,7 @@ details[open] summary {
 .sectionHead span,
 .alertHead span,
 .alertHead b {
-  border-radius: 999px;
+  border-radius: 8px;
   background: #f1e8de;
   padding: 7px 10px;
   color: #5b3a2e;
@@ -360,7 +360,7 @@ details[open] summary {
 
 .message {
   margin: 12px 0 0;
-  border-radius: 10px;
+  border-radius: 8px;
   background: #f4e7dc;
   color: #7c3f2d;
   padding: 11px 12px;
@@ -426,7 +426,7 @@ details[open] summary {
 
 .drillItem b {
   width: fit-content;
-  border-radius: 999px;
+  border-radius: 8px;
   padding: 4px 8px;
   font-size: 12px;
 }
@@ -502,7 +502,7 @@ details[open] summary {
 .checkLine {
   padding: 8px 10px;
   border: 1px solid #dfd2c3;
-  border-radius: 10px;
+  border-radius: 8px;
   background: #fff7ee;
 }
 
@@ -523,7 +523,7 @@ details[open] summary {
   min-height: 34px;
   padding: 7px 10px;
   border: 1px solid #dfd2c3;
-  border-radius: 999px;
+  border-radius: 8px;
   background: #fffaf4;
 }
 
@@ -712,7 +712,7 @@ details[open] summary {
 }
 
 .alertBack {
-  border-radius: 999px;
+  border-radius: 8px;
   background: rgba(0, 0, 0, .32);
   color: #fff;
   padding: 8px 11px;
@@ -819,7 +819,7 @@ details[open] summary {
   gap: 10px;
   min-width: 0;
   padding: 10px;
-  border-radius: 10px;
+  border-radius: 8px;
   background: #f5ece2;
 }
 
@@ -870,7 +870,7 @@ details[open] summary {
 
 .historyNav b {
   align-self: start;
-  border-radius: 999px;
+  border-radius: 8px;
   background: #f1e8de;
   padding: 5px 8px;
   color: #5b3a2e;
@@ -996,7 +996,7 @@ details[open] summary {
   gap: 4px 10px;
   padding: 12px;
   border: 1px solid #dfd2c3;
-  border-radius: 10px;
+  border-radius: 8px;
   background: #fffaf4;
   color: #2f2a24;
   text-decoration: none;
@@ -1031,7 +1031,7 @@ details[open] summary {
   gap: 10px;
   padding: 11px 12px;
   border: 1px solid #dfd2c3;
-  border-radius: 10px;
+  border-radius: 8px;
   background: #fffaf4;
   color: #2f2a24;
   text-decoration: none;
@@ -1060,7 +1060,7 @@ details[open] summary {
 
 .eventLogItem em {
   justify-self: end;
-  border-radius: 999px;
+  border-radius: 8px;
   padding: 5px 8px;
   font-style: normal;
   font-size: 12px;
@@ -1082,7 +1082,7 @@ details[open] summary {
   grid-auto-flow: column;
   align-items: center;
   gap: 8px;
-  border-radius: 999px;
+  border-radius: 8px;
   background: #f1e8de;
   padding: 7px 10px;
   color: #5b3a2e;
@@ -1102,7 +1102,7 @@ details[open] summary {
 }
 
 .dangerButton {
-  border-radius: 999px;
+  border-radius: 8px;
   border-color: #f0b9ac;
   background: #f8d8cf;
   color: #991b1b;
