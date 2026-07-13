@@ -169,7 +169,7 @@ details[open] summary {
 .statusCard {
   min-width: 0;
   border: 1px solid #dfd2c3;
-  border-radius: 16px;
+  border-radius: 8px;
   background: rgba(255, 252, 247, .9);
   box-shadow: 0 22px 50px rgba(74, 50, 36, .1);
 }
@@ -377,7 +377,7 @@ details[open] summary {
   display: grid;
   gap: 6px;
   min-height: 86px;
-  border-radius: 12px;
+  border-radius: 8px;
   background: rgba(255, 255, 255, .1);
   padding: 14px;
 }
@@ -473,7 +473,7 @@ details[open] summary {
   gap: 8px;
   padding: 12px;
   border: 1px solid #dfd2c3;
-  border-radius: 12px;
+  border-radius: 8px;
   background: #fffaf4;
 }
 
@@ -530,7 +530,7 @@ details[open] summary {
 .advancedConfig {
   margin-top: 14px;
   border: 1px solid #dfd2c3;
-  border-radius: 12px;
+  border-radius: 8px;
   background: #fffaf4;
   padding: 0;
 }
@@ -621,7 +621,7 @@ details[open] summary {
 .bigMetrics div,
 .epicenterLine,
 .tips {
-  border-radius: 14px;
+  border-radius: 8px;
   background: rgba(255, 255, 255, .86);
   padding: 16px;
 }
@@ -731,7 +731,7 @@ details[open] summary {
   width: 100%;
   min-height: 430px;
   height: 56vh;
-  border-radius: 12px;
+  border-radius: 8px;
   overflow: hidden;
   border: 1px solid #dfd2c3;
   background: #eadfD2;
@@ -857,7 +857,7 @@ details[open] summary {
   gap: 4px 12px;
   padding: 14px;
   border: 1px solid #dfd2c3;
-  border-radius: 12px;
+  border-radius: 8px;
   background: #fffaf4;
   color: #2f2a24;
   text-decoration: none;
@@ -910,7 +910,7 @@ details[open] summary {
 .rulesGrid > div,
 .ruleDeviceList > div {
   border: 1px solid #dfd2c3;
-  border-radius: 12px;
+  border-radius: 8px;
   background: #fffaf4;
   padding: 14px;
 }
@@ -973,7 +973,7 @@ details[open] summary {
   align-content: start;
   gap: 10px;
   border: 1px solid #dfd2c3;
-  border-radius: 12px;
+  border-radius: 8px;
   background: #fffaf4;
   padding: 14px;
 }
@@ -1145,7 +1145,7 @@ details[open] summary {
   .panel,
   .mapPanel,
   .statusCard {
-    border-radius: 12px;
+    border-radius: 8px;
     padding: 15px;
   }
 
