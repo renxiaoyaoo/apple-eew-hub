@@ -384,6 +384,23 @@ async def clear_logs() -> dict:
     return {"ok": True, "backup": backup_result["path"]}
 
 
+@app.delete("/api/logs/pushes")
+async def clear_push_logs() -> dict:
+    backup_result = await backup()
+    db.execute("DELETE FROM pushes")
+    return {"ok": True, "backup": backup_result["path"]}
+
+
+@app.delete("/api/logs/events")
+async def clear_event_logs() -> dict:
+    backup_result = await backup()
+    db.execute("DELETE FROM pushes")
+    db.execute("DELETE FROM decisions")
+    db.execute("DELETE FROM events")
+    db.execute("DELETE FROM app_state WHERE key = ?", ("latest_alert",))
+    return {"ok": True, "backup": backup_result["path"]}
+
+
 @app.post("/api/backup")
 async def backup() -> dict:
     backup_dir = settings.data_dir / "backups"

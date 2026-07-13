@@ -570,9 +570,17 @@ function App() {
     await refresh();
   }
 
-  async function clearHistory() {
-    await api<{ ok: boolean }>("/api/logs", { method: "DELETE" });
-    setMessage("历史记录已清除。");
+  async function clearPushHistory() {
+    if (!window.confirm("确定清除推送历史吗？地震历史会保留。")) return;
+    await api<{ ok: boolean }>("/api/logs/pushes", { method: "DELETE" });
+    setMessage("推送历史已清除。");
+    await refresh();
+  }
+
+  async function clearEventHistory() {
+    if (!window.confirm("确定清除地震历史吗？相关判断和推送记录也会一起清除。")) return;
+    await api<{ ok: boolean }>("/api/logs/events", { method: "DELETE" });
+    setMessage("地震历史已清除。");
     await refresh();
   }
 
@@ -655,7 +663,7 @@ function App() {
         </div>
         <div className="historyActions">
           <label className="toggle"><input type="checkbox" checked={hideTestHistory} onChange={(event) => setHideTestHistory(event.target.checked)} />隐藏测试</label>
-          <button className="dangerButton" onClick={clearHistory}>清除历史记录</button>
+          <button className="dangerButton" onClick={clearPushHistory}>清除推送历史</button>
         </div>
       </div>
       <div className="historyList">
@@ -679,6 +687,7 @@ function App() {
         <div className="historyActions">
           <label className="toggle"><input type="checkbox" checked={hideTestHistory} onChange={(event) => setHideTestHistory(event.target.checked)} />隐藏测试</label>
           <span>{dedupedVisibleEvents.length} 条</span>
+          <button className="dangerButton" onClick={clearEventHistory}>清除地震历史</button>
         </div>
       </div>
       <div className="eventLogList">
