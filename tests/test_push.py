@@ -1,3 +1,4 @@
+from types import SimpleNamespace
 from urllib.parse import unquote
 
 from app.models import EarthquakeEvent
@@ -44,3 +45,11 @@ def test_blue_global_payload_does_not_use_local_countdown():
 
     assert "%E5%85%A8%E7%90%83%E7%89%B9%E5%A4%A7%E5%9C%B0%E9%9C%87%E6%8F%90%E9%86%92" in path
     assert "call" not in query
+
+
+def test_bark_payload_links_to_device_specific_detail(monkeypatch):
+    monkeypatch.setattr("app.push.settings", SimpleNamespace(public_base_url="https://h-eew.example"))
+
+    _, query = bark_payload(event(event_id="evt/1"), 80, 3, "明显有感", 12, device_id=7)
+
+    assert query["url"] == "https://h-eew.example/event/evt%2F1?device_id=7"

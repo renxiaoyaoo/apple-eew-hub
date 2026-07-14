@@ -28,6 +28,25 @@ def test_normalize_emsc_message_accepts_standing_order_payload():
     assert event.magnitude == 7.8
 
 
+def test_normalize_emsc_message_uses_positive_depth_from_properties():
+    event = normalize_emsc_message(
+        {
+            "data": {
+                "geometry": {"coordinates": [125.1655, 5.3269, -67.9]},
+                "properties": {
+                    "unid": "mindanao",
+                    "mag": 6.2,
+                    "depth": 67.9,
+                    "flynn_region": "MINDANAO, PHILIPPINES",
+                },
+            }
+        }
+    )
+
+    assert event is not None
+    assert event.depth_km == 67.9
+
+
 def test_normalize_emsc_message_rejects_below_global_threshold():
     event = normalize_emsc_message(
         {
@@ -92,6 +111,23 @@ def test_should_not_record_far_low_intensity_global_small_quake(tmp_path):
             "data": {
                 "geometry": {"coordinates": [117.92, -9.19, 10]},
                 "properties": {"unid": "sumbawa", "mag": 2.6, "flynn_region": "SUMBAWA REGION, INDONESIA"},
+            }
+        }
+    )
+
+    assert event is not None
+    assert should_record_global_event(db, event) is False
+
+
+def test_should_not_record_far_low_intensity_mindanao_event(tmp_path):
+    db = Database(tmp_path / "eew.sqlite3")
+    db.init()
+    insert_device(db)
+    event = normalize_emsc_message(
+        {
+            "data": {
+                "geometry": {"coordinates": [125.1655, 5.3269, -67.9]},
+                "properties": {"unid": "mindanao", "mag": 6.2, "depth": 67.9, "flynn_region": "MINDANAO, PHILIPPINES"},
             }
         }
     )

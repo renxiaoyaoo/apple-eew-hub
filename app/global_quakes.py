@@ -41,12 +41,13 @@ def normalize_emsc_message(message: dict[str, Any]) -> EarthquakeEvent | None:
 
     latitude = _pick(props, "lat", "latitude")
     longitude = _pick(props, "lon", "longitude")
-    depth_km = _pick(props, "depth", "depth_km", default=10)
+    depth_km = _pick(props, "depth", "depth_km")
     if len(coords) >= 2:
         longitude = coords[0]
         latitude = coords[1]
-        if len(coords) >= 3 and coords[2] not in (None, ""):
+        if depth_km is None and len(coords) >= 3 and coords[2] not in (None, ""):
             depth_km = coords[2]
+    depth_km = abs(float(depth_km if depth_km not in (None, "") else 10))
     if latitude is None or longitude is None:
         return None
 
@@ -67,7 +68,7 @@ def normalize_emsc_message(message: dict[str, Any]) -> EarthquakeEvent | None:
         latitude=float(latitude),
         longitude=float(longitude),
         magnitude=float(magnitude),
-        depth_km=float(depth_km or 10),
+        depth_km=depth_km,
         origin_time=origin_time,
         raw=message,
         test=False,
@@ -80,7 +81,7 @@ def should_record_global_event(db: Database, event: EarthquakeEvent) -> bool:
     devices = [normalize_device(row) for row in db.query("SELECT * FROM devices WHERE enabled = 1 ORDER BY id")]
     for device in devices:
         decision = decide_for_device(event, device)
-        record_intensity = max(1, device["min_intensity"] * 0.8)
+        record_intensity = max(2, device["min_intensity"])
         if decision.should_push:
             return True
         if decision.distance_km <= device["max_distance_km"] and event.magnitude >= device["min_magnitude"] and decision.intensity >= record_intensity:

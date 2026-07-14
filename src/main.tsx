@@ -46,6 +46,7 @@ type LatestAlert = {
     test: boolean;
   };
   decisions?: Array<{
+    device_id?: number;
     device_name: string;
     distance_km: number;
     arrival_seconds: number;
@@ -374,6 +375,11 @@ function App() {
     const eventPath = window.location.pathname.match(/^\/event\/([^/]+)$/);
     return eventPath?.[1] ? decodeURIComponent(eventPath[1]) : new URLSearchParams(window.location.search).get("event_id") || "";
   });
+  const [detailDeviceId] = useState(() => {
+    const id = new URLSearchParams(window.location.search).get("device_id");
+    const value = Number(id);
+    return Number.isFinite(value) && value > 0 ? value : null;
+  });
   const [status, setStatus] = useState<Status | null>(null);
   const [devices, setDevices] = useState<Device[]>([]);
   const [latest, setLatest] = useState<LatestAlert>({});
@@ -461,7 +467,11 @@ function App() {
     depth_km: selectedPreset.depth_km,
     test: true,
   };
-  const decision = latest.decisions?.[0] ?? {
+  const selectedDecision = detailDeviceId
+    ? latest.decisions?.find((item) => item.device_id === detailDeviceId)
+    : latest.decisions?.[0];
+  const decision = selectedDecision ?? {
+    device_id: devices[0]?.id,
     device_name: devices[0]?.name ?? "成都 Apple 设备",
     distance_km: selectedPreset.distance_km,
     arrival_seconds: selectedPreset.countdown_seconds,
@@ -475,7 +485,9 @@ function App() {
   const countdownBaseMs = timeMs(decision.created_at) ?? alertStartedAt;
   const elapsedSeconds = Math.max(0, Math.floor((nowMs - countdownBaseMs) / 1000));
   const liveArrivalSeconds = Math.max(-90, decision.arrival_seconds - elapsedSeconds);
-  const activeDevice = devices[0];
+  const activeDevice = detailDeviceId
+    ? devices.find((item) => item.id === detailDeviceId)
+    : devices.find((item) => item.name === decision.device_name) ?? devices[0];
   const user = activeDevice ? { lat: activeDevice.latitude, lng: activeDevice.longitude } : chengdu;
   const epicenter: [number, number] = [event.latitude || fallbackEpicenter.lat, event.longitude || fallbackEpicenter.lng];
   const userPoint: [number, number] = [user.lat || chengdu.lat, user.lng || chengdu.lng];
@@ -663,6 +675,7 @@ function App() {
         </div>
         <div className="historyActions">
           <label className="toggle"><input type="checkbox" checked={hideTestHistory} onChange={(event) => setHideTestHistory(event.target.checked)} />隐藏测试</label>
+          <span>{visiblePushes.length} 条推送</span>
           <button className="dangerButton" onClick={clearPushHistory}>清除推送历史</button>
         </div>
       </div>
@@ -728,7 +741,7 @@ function App() {
         </a>
         <a href="/pushes">
           <span>推送历史</span>
-          <b>{logs.pushes.length} 条</b>
+          <b>{logs.pushes.length} 条推送</b>
         </a>
         <a href="/rules">
           <span>规则说明</span>

@@ -117,6 +117,11 @@ def decide_for_device(event: EarthquakeEvent, device: dict, override: dict | Non
         should_push, reason = True, "test drill"
     elif event.magnitude >= GLOBAL_MAJOR_MAGNITUDE:
         should_push, reason = True, "global major earthquake"
+    elif event.source == "emsc_global":
+        if distance <= device["max_distance_km"] and event.magnitude >= device["min_magnitude"] and intensity >= max(2, device["min_intensity"]):
+            should_push, reason = True, "global local threshold matched"
+        else:
+            should_push, reason = False, "below threshold"
     elif distance <= device["max_distance_km"] and event.magnitude >= device["min_magnitude"] and intensity >= device["min_intensity"]:
         should_push, reason = True, "threshold matched"
     elif intensity >= 2:

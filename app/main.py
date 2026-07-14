@@ -271,7 +271,7 @@ async def test_push(payload: TestPushIn) -> dict:
             now,
         ),
     )
-    result = await send_bark(device["bark_key"], event, 0, 2, "轻微震感", 18, repeat_override=1)
+    result = await send_bark(device["bark_key"], event, 0, 2, "轻微震感", 18, device_id=device["id"], repeat_override=1)
     db.execute(
         """
         INSERT INTO pushes
@@ -320,7 +320,7 @@ async def alert_by_id(event_id: str) -> dict:
         raise HTTPException(404, "event not found")
     decisions = db.query(
         """
-        SELECT devices.name AS device_name, d.distance_km, d.arrival_seconds,
+        SELECT d.device_id, devices.name AS device_name, d.distance_km, d.arrival_seconds,
                d.intensity, d.intensity_text, d.status, d.should_push, d.created_at
         FROM decisions d
         JOIN devices ON devices.id = d.device_id

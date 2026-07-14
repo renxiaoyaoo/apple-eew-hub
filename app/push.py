@@ -61,7 +61,14 @@ def arrival_text(arrival_seconds: int) -> str:
     return f"{arrival_seconds}秒后到达" if arrival_seconds > 0 else "横波已到达"
 
 
-def bark_payload(event: EarthquakeEvent, distance_km: float, intensity: float, text: str, arrival_seconds: int) -> tuple[str, dict[str, str]]:
+def bark_payload(
+    event: EarthquakeEvent,
+    distance_km: float,
+    intensity: float,
+    text: str,
+    arrival_seconds: int,
+    device_id: int | None = None,
+) -> tuple[str, dict[str, str]]:
     tier = bark_tier(intensity)
     title = bark_title(event, intensity, arrival_seconds)
     if event.source == "emsc_global" and intensity <= 1:
@@ -80,7 +87,10 @@ def bark_payload(event: EarthquakeEvent, distance_km: float, intensity: float, t
     if tier == "red" and arrival_seconds > 0:
         query["call"] = "1"
     if settings.public_base_url:
-        query["url"] = settings.public_base_url.rstrip("/") + f"/event/{quote(event.event_id)}"
+        event_url = settings.public_base_url.rstrip("/") + f"/event/{quote(event.event_id, safe='')}"
+        if device_id is not None:
+            event_url += f"?device_id={quote(str(device_id))}"
+        query["url"] = event_url
     return f"{quote(title)}/{quote(body)}", query
 
 
@@ -91,11 +101,12 @@ async def send_bark(
     intensity: float,
     text: str,
     arrival_seconds: int,
+    device_id: int | None = None,
     repeat_override: int | None = None,
 ) -> dict:
     if not bark_key:
         return {"channel": "bark", "ok": False, "status_code": None, "latency_ms": 0, "message": "missing Bark key"}
-    path, query = bark_payload(event, distance_km, intensity, text, arrival_seconds)
+    path, query = bark_payload(event, distance_km, intensity, text, arrival_seconds, device_id)
     url = f"{settings.bark_base_url.rstrip('/')}/{quote(bark_key.strip(), safe='')}/{path}"
     repeat, gap = bark_repeat(intensity)
     if repeat_override is not None:
@@ -186,4 +197,5 @@ async def dispatch_push(device: dict, event: EarthquakeEvent, decision: Decision
         decision.intensity,
         decision.intensity_text,
         decision.arrival_seconds,
+        device.get("id"),
     )

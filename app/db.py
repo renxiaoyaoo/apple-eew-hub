@@ -101,6 +101,7 @@ class Database:
         push_columns = {row["name"] for row in conn.execute("PRAGMA table_info(pushes)").fetchall()}
         if "push_phase" not in push_columns:
             conn.execute("ALTER TABLE pushes ADD COLUMN push_phase TEXT NOT NULL DEFAULT 'initial'")
+        conn.execute("UPDATE events SET depth_km = ABS(depth_km) WHERE depth_km < 0")
         conn.commit()
 
     def execute(self, sql: str, params: Iterable[Any] = ()) -> sqlite3.Cursor:
