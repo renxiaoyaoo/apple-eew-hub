@@ -96,6 +96,20 @@ type Logs = {
   }>;
 };
 
+type PushEventGroup = {
+  key: string;
+  event_id: string;
+  epicenter: string;
+  magnitude?: number;
+  test?: number | boolean;
+  phases: Set<string>;
+  devices: Set<string>;
+  attempts: number;
+  okCount: number;
+  latencyMs: number;
+  latestAt: string;
+};
+
 type SystemConfig = {
   wolfx_enabled: boolean;
   wolfx_ws_url: string;
@@ -338,6 +352,10 @@ function barkLevelText(value: string) {
   return barkLevelOptions.find(([level]) => level === value)?.[1] ?? value;
 }
 
+function repeatText(value: number) {
+  return `${Math.max(1, Number(value) || 1)} 次`;
+}
+
 function canonicalLogEventId(eventId: string) {
   return eventId.replace(/^(\d{12}\.\d+)_\d+$/, "$1");
 }
@@ -501,6 +519,40 @@ function App() {
     const key = canonicalLogEventId(item.event_id);
     return items.findIndex((candidate) => canonicalLogEventId(candidate.event_id) === key) === index;
   });
+  const groupedPushEvents = Array.from(visiblePushes.reduce((groups, item) => {
+    const key = canonicalLogEventId(item.event_id);
+    const current = groups.get(key);
+    const itemTime = timeMs(item.created_at) ?? 0;
+    if (!current) {
+      groups.set(key, {
+        key,
+        event_id: item.event_id,
+        epicenter: item.epicenter || "地震事件",
+        magnitude: item.magnitude,
+        test: item.test,
+        phases: new Set([item.push_phase || "initial"]),
+        devices: new Set([item.device_name || "Apple 设备"]),
+        attempts: 1,
+        okCount: item.ok ? 1 : 0,
+        latencyMs: item.latency_ms ?? 0,
+        latestAt: item.created_at,
+      });
+      return groups;
+    }
+    current.phases.add(item.push_phase || "initial");
+    current.devices.add(item.device_name || "Apple 设备");
+    current.attempts += 1;
+    current.okCount += item.ok ? 1 : 0;
+    current.latencyMs += item.latency_ms ?? 0;
+    if (item.epicenter) current.epicenter = item.epicenter;
+    if (typeof item.magnitude === "number") current.magnitude = item.magnitude;
+    if (item.test !== undefined) current.test = item.test;
+    if (itemTime > (timeMs(current.latestAt) ?? 0)) {
+      current.event_id = item.event_id;
+      current.latestAt = item.created_at;
+    }
+    return groups;
+  }, new Map<string, PushEventGroup>()).values()).sort((a, b) => (timeMs(b.latestAt) ?? 0) - (timeMs(a.latestAt) ?? 0));
   const decisionByEvent = new Map(logs.decisions.map((item) => [item.event_id, item]));
   const displayCity = activeDevice?.default_city || "成都";
   const isFarGlobalBrief = event.source === "emsc_global" && decision.distance_km > (activeDevice?.max_distance_km ?? 500);
@@ -675,18 +727,24 @@ function App() {
         </div>
         <div className="historyActions">
           <label className="toggle"><input type="checkbox" checked={hideTestHistory} onChange={(event) => setHideTestHistory(event.target.checked)} />隐藏测试</label>
-          <span>{visiblePushes.length} 条推送</span>
+          <span>{groupedPushEvents.length} 条</span>
           <button className="dangerButton" onClick={clearPushHistory}>清除推送历史</button>
         </div>
       </div>
       <div className="historyList">
-        {visiblePushes.slice(0, limit ?? visiblePushes.length).map((item) => (
-          <a key={item.id} className="historyItem" href={`/event/${encodeURIComponent(item.event_id)}`}>
-            <span>{item.test ? "测试" : "预警"} · {pushPhaseText(item.push_phase)} · {item.epicenter || "地震事件"}</span>
-            <small>{item.device_name || "Apple 设备"} · {item.ok ? "已发送" : "失败"} · {item.latency_ms ?? 0} ms</small>
-            <b>{typeof item.magnitude === "number" ? `M${item.magnitude.toFixed(1)}` : item.channel}</b>
+        {groupedPushEvents.slice(0, limit ?? groupedPushEvents.length).map((item) => {
+          const phases = Array.from(item.phases)
+            .sort((a, b) => ["initial", "arrival", "test"].indexOf(a) - ["initial", "arrival", "test"].indexOf(b))
+            .map(pushPhaseText)
+            .join(" / ");
+          return (
+          <a key={item.key} className="historyItem" href={`/event/${encodeURIComponent(item.event_id)}`}>
+            <span>{item.test ? "测试" : "预警"} · {item.epicenter}</span>
+            <small>{item.devices.size} 台设备 · {phases} · {item.okCount}/{item.attempts} 成功 · 总耗时 {item.latencyMs} ms</small>
+            <b>{typeof item.magnitude === "number" ? `M${item.magnitude.toFixed(1)}` : `${item.attempts} 次`}</b>
           </a>
-        ))}
+          );
+        })}
       </div>
     </section>
   );
@@ -741,7 +799,7 @@ function App() {
         </a>
         <a href="/pushes">
           <span>推送历史</span>
-          <b>{logs.pushes.length} 条推送</b>
+          <b>{groupedPushEvents.length} 条</b>
         </a>
         <a href="/rules">
           <span>规则说明</span>
@@ -774,8 +832,8 @@ function App() {
             <h2>哪些地震会进入历史</h2>
             <ul>
               <li>国内预警源收到的地震会记录，用于追踪报数、修正报和取消报。</li>
-              <li>全球 EMSC 事件只有两类会记录：全球特大地震 M{status?.global_quake_min_magnitude ?? 7.5}+，或对某台设备已经有本地相关烈度。</li>
-              <li>本地相关烈度指预计烈度至少接近设备阈值，不再只因为“距离在最大范围内”就记录全球小震。</li>
+              <li>全球 EMSC 事件只有两类会记录：全球特大地震 M{status?.global_quake_min_magnitude ?? 7.5}+，或对某台设备同时满足距离、震级和本地烈度。</li>
+              <li>EMSC 本地烈度要求至少为 2，并且不低于这台设备设置的最低烈度。</li>
               <li>测试通知和演练会记录，方便检查推送是否正常。</li>
             </ul>
           </div>
@@ -783,9 +841,9 @@ function App() {
             <h2>什么时候会推送</h2>
             <ul>
               <li>演练会推送给允许接收测试的设备。</li>
-              <li>全球特大地震 M{status?.global_quake_min_magnitude ?? 7.5}+ 会温和提醒，即使离你很远。</li>
-              <li>本地地震需要同时满足设备阈值：距离、震级和预计烈度。</li>
-              <li>如果预计烈度达到 2 以上，系统会按“可能有感”兜底提醒。</li>
+              <li>全球特大地震 M{status?.global_quake_min_magnitude ?? 7.5}+ 会温和提醒，即使离你很远；远距离全球提醒不显示本地倒计时。</li>
+              <li>EMSC 全球源的非特大地震，必须对某台设备同时满足距离、震级和本地烈度才会推送。</li>
+              <li>国内预警源优先按设备阈值推送；如果预计烈度达到 2 以上，也会按“可能有感”兜底提醒。</li>
             </ul>
           </div>
           <div>
@@ -819,9 +877,9 @@ function App() {
       <section className="panel pushSummary">
         <div>
           <h2>当前提醒方式</h2>
-          <p>红色：烈度 ≥ {systemConfig.alert_red_intensity}。发现时发送 1 次 {barkLevelText(systemConfig.bark_red_level)}，音量 {systemConfig.bark_red_volume || "默认"}，铃声 {systemConfig.bark_red_sound}，并持续响；横波到达时再发 1 次“已到达”，不持续响。</p>
-          <p>黄色：烈度 ≥ {systemConfig.alert_yellow_intensity}。发现时发送 1 次 {barkLevelText(systemConfig.bark_yellow_level)}，音量 {systemConfig.bark_yellow_volume || "默认"}，铃声 {systemConfig.bark_yellow_sound}；横波到达时再发 1 次。</p>
-          <p>蓝色：低于黄色但仍需要提醒时使用。发现时发送 1 次 {barkLevelText(systemConfig.bark_blue_level)}，音量 {systemConfig.bark_blue_volume || "默认"}，铃声 {systemConfig.bark_blue_sound}；横波到达时再发 1 次。</p>
+          <p>红色：烈度 ≥ {systemConfig.alert_red_intensity}。发现时发送 {repeatText(systemConfig.bark_red_repeat)} {barkLevelText(systemConfig.bark_red_level)}，音量 {systemConfig.bark_red_volume || "默认"}，铃声 {systemConfig.bark_red_sound}，并使用持续响；如果横波尚未到达，到达时再发一次“已到达”。</p>
+          <p>黄色：烈度 ≥ {systemConfig.alert_yellow_intensity}。发现时发送 {repeatText(systemConfig.bark_yellow_repeat)} {barkLevelText(systemConfig.bark_yellow_level)}，音量 {systemConfig.bark_yellow_volume || "默认"}，铃声 {systemConfig.bark_yellow_sound}；如果横波尚未到达，到达时再发一次。</p>
+          <p>蓝色：低于黄色但仍需要提醒时使用。发现时发送 {repeatText(systemConfig.bark_blue_repeat)} {barkLevelText(systemConfig.bark_blue_level)}，音量 {systemConfig.bark_blue_volume || "默认"}，铃声 {systemConfig.bark_blue_sound}；如果横波尚未到达，到达时再发一次。</p>
         </div>
       </section>
       <section className="panel pushSettingsPanel">
