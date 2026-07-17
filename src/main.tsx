@@ -653,16 +653,16 @@ function App() {
   }
 
   async function clearPushHistory() {
-    if (!window.confirm("确定清除推送历史吗？地震历史会保留。")) return;
+    if (!window.confirm("确定清除推送历史吗？预警历史会保留。")) return;
     await api<{ ok: boolean }>("/api/logs/pushes", { method: "DELETE" });
     setMessage("推送历史已清除。");
     await refresh();
   }
 
   async function clearEventHistory() {
-    if (!window.confirm("确定清除地震历史吗？相关判断和推送记录也会一起清除。")) return;
+    if (!window.confirm("确定清除预警历史吗？相关判断和推送记录也会一起清除。")) return;
     await api<{ ok: boolean }>("/api/logs/events", { method: "DELETE" });
-    setMessage("地震历史已清除。");
+    setMessage("预警历史已清除。");
     await refresh();
   }
 
@@ -771,12 +771,12 @@ function App() {
     <section className="panel eventLogPanel">
       <div className="sectionHead">
         <div>
-          <h2>地震历史</h2>
+          <h2>预警历史</h2>
         </div>
         <div className="historyActions">
           <label className="toggle"><input type="checkbox" checked={hideTestHistory} onChange={(event) => setHideTestHistory(event.target.checked)} />隐藏测试</label>
           <span>{dedupedVisibleEvents.length} 条</span>
-          <button className="dangerButton" onClick={clearEventHistory}>清除地震历史</button>
+          <button className="dangerButton" onClick={clearEventHistory}>清除预警历史</button>
         </div>
       </div>
       <div className="eventLogList">
@@ -807,7 +807,7 @@ function App() {
     <section className="panel eventLogPanel">
       <div className="sectionHead">
         <div>
-          <h2>监听目录</h2>
+          <h2>实时地震记录</h2>
         </div>
         <div className="historyActions">
           <span>{visibleObservedEvents.length} 条</span>
@@ -828,7 +828,7 @@ function App() {
               </div>
               <b>M{item.magnitude.toFixed(1)}</b>
               <small>深度 {item.depth_km} km</small>
-              <em className={inWarningHistory ? "pushed" : "notPushed"}>{item.reason || (inWarningHistory ? "已入预警历史" : "仅监听到")}</em>
+              <em className={inWarningHistory ? "pushed" : "notPushed"}>{item.reason || (inWarningHistory ? "已进入预警历史" : "未触发预警")}</em>
             </a>
           );
         })}
@@ -844,13 +844,13 @@ function App() {
         </div>
       </div>
       <div className="historyNav">
-        <a href="/history">
-          <span>地震历史</span>
-          <b>{dedupedVisibleEvents.length} 条</b>
-        </a>
         <a href="/catalog">
-          <span>监听目录</span>
+          <span>实时地震记录</span>
           <b>{visibleObservedEvents.length} 条</b>
+        </a>
+        <a href="/history">
+          <span>预警历史</span>
+          <b>{dedupedVisibleEvents.length} 条</b>
         </a>
         <a href="/pushes">
           <span>推送历史</span>
@@ -884,31 +884,28 @@ function App() {
       <section className="panel rulesPanel">
         <div className="rulesGrid">
           <div>
-            <h2>哪些地震会进入历史</h2>
+            <h2>三类记录的关系</h2>
             <ul>
-              <li>国内预警源收到的地震会记录，用于追踪报数、修正报和取消报。</li>
-              <li>全球 EMSC 事件只有两类会记录：全球特大地震 M{status?.global_quake_min_magnitude ?? 7.5}+，或对某台设备同时满足距离、震级和本地烈度。</li>
-              <li>EMSC 本地烈度要求至少为 2，并且不低于这台设备设置的最低烈度。</li>
-              <li>未进入预警历史的 EMSC 事件会进入监听目录，用来确认系统确实听到了哪些事件。</li>
-              <li>测试通知和演练会记录，方便检查推送是否正常。</li>
+              <li>实时地震记录：系统从已连接实时源收到的地震，小震和远震也会显示。</li>
+              <li>预警历史：从实时地震记录中筛选出进入本地判断链路的事件。</li>
+              <li>推送历史：预警历史里实际发送到 Apple 设备的通知结果。</li>
+            </ul>
+          </div>
+          <div>
+            <h2>什么会进入预警历史</h2>
+            <ul>
+              <li>国内预警源收到的地震会进入预警历史，用于追踪报数、修正报和取消报。</li>
+              <li>全球 EMSC 的 M{status?.global_quake_min_magnitude ?? 7.5}+ 会进入预警历史，即使离你很远。</li>
+              <li>EMSC 非特大地震只有在对某台设备同时满足距离、震级和本地烈度时，才进入预警历史。</li>
             </ul>
           </div>
           <div>
             <h2>什么时候会推送</h2>
             <ul>
               <li>演练会推送给允许接收测试的设备。</li>
-              <li>全球特大地震 M{status?.global_quake_min_magnitude ?? 7.5}+ 会温和提醒，即使离你很远；远距离全球提醒不显示本地倒计时。</li>
-              <li>EMSC 全球源的非特大地震，必须对某台设备同时满足距离、震级和本地烈度才会推送。</li>
+              <li>远距离全球 M{status?.global_quake_min_magnitude ?? 7.5}+ 只做温和提醒，不显示本地倒计时。</li>
               <li>国内预警源优先按设备阈值推送；如果预计烈度达到 2 以上，也会按“可能有感”兜底提醒。</li>
-            </ul>
-          </div>
-          <div>
-            <h2>不会记录的情况</h2>
-            <ul>
-              <li>远距离全球小震不会只因为被数据源收到就进入历史。</li>
-              <li>未达到全球特大震级，也没有本地相关烈度的事件不会记录。</li>
-              <li>设备已停用时，不会为这台设备产生推送判断。</li>
-              <li>取消报不会触发新的推送。</li>
+              <li>取消报、停用设备和未达到规则的事件不会触发推送。</li>
             </ul>
           </div>
         </div>
@@ -1063,8 +1060,8 @@ function App() {
     return (
       <main className="appShell">
         {historyPageHeader(
-          "地震历史",
-          `只记录本地相关事件和全球 M${status?.global_quake_min_magnitude ?? 7.5}+ 特大地震。普通监听记录请看监听目录。`,
+          "预警历史",
+          `从实时地震记录中筛选出进入预警判断的事件，包括国内预警源事件、本地相关地震、全球 M${status?.global_quake_min_magnitude ?? 7.5}+ 和演练。`,
         )}
         {renderEventLogSection()}
       </main>
@@ -1075,8 +1072,8 @@ function App() {
     return (
       <main className="appShell">
         {historyPageHeader(
-          "监听目录",
-          "只显示系统从实时监听源收到的事件，不做定时目录拉取。",
+          "实时地震记录",
+          "系统从已连接实时源收到的地震都会先出现在这里。小震、远震可能不会触发预警，但能用来确认系统确实听到了这些事件。",
         )}
         {renderCatalogSection()}
       </main>
