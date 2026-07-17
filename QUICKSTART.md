@@ -1,22 +1,5 @@
 # Quick Start
 
-目标：在任意 Docker 主机上一次启动两个服务：
-
-- `eew-hub`：地震预警判断和 Web 管理页
-- `bark-server`：自建 Bark Server，可直接给 Bark App 使用
-
-Bark 是推荐的 Apple 设备通知方式，但不是必需。你也可以只使用 ntfy、Webhook，或者先不配置推送设备，只查看实时地震记录、预警历史、演练和地图。
-
-默认四川优先接入 Wolfx 当前公开 WebSocket：
-
-- `wss://ws-api.wolfx.jp/sc_eew`：四川省地震局，四川优先
-- `wss://ws-api.wolfx.jp/cq_eew`：重庆市地震局，覆盖川渝周边
-- `wss://ws-api.wolfx.jp/cenc_eew`：中国地震台网，全国补充
-
-全球特大地震接入 EMSC/SeismicPortal WebSocket：
-
-- `wss://www.seismicportal.eu/standing_order/websocket`：全球新事件和更新，默认只处理 `M7.5+`
-
 ## 1. 启动
 
 ```bash
@@ -30,7 +13,6 @@ docker compose up -d --build
 ```bash
 docker compose ps
 curl http://127.0.0.1:18761/api/health
-curl http://127.0.0.1:18762/ping
 ```
 
 打开管理页：
@@ -39,149 +21,86 @@ curl http://127.0.0.1:18762/ping
 http://服务器IP:18761/
 ```
 
-预警详情页不需要手动打开。Bark 通知会指向这次地震的独立页面 `/event/{event_id}`。
+## 2. 添加 Apple 设备
 
-## 2. 设置管理 Token
+推荐使用 Bark：
 
-编辑 `.env`：
+1. Bark App 的服务器填你的自建 Bark Server 地址。
+2. 局域网地址通常是 `http://服务器IP:18762`。
+3. 有公网时可以填 `https://bark.example.com`。
+4. 在 Bark App 里复制 Key。
+5. 回到管理页，保存 Apple 设备。
+6. 点击“测试通知”。
 
-```env
-EEW_AUTH_TOKEN=换成一段足够长的随机字符串
-```
+不用 Bark 也可以，设备推送方式可选 `ntfy` 或 `webhook`。
 
-重启：
+## 3. 设置位置
 
-```bash
-docker compose up -d
-```
+每台设备都可以单独设置位置：
 
-刷新管理页后，在“管理 Token”输入同一段字符串。
+- 填城市
+- 点击“获取位置”
+- 手动填经纬度
 
-## 3. iPhone Bark App 连接自建 Server
+系统只保存最新位置，不保存轨迹。
 
-如果你不用 Bark，可以跳过这一节，在设备里改用 ntfy 或 Webhook。
+## 4. 演练
 
-如果已经配置公网访问，填写你的 Bark Server 外部地址，例如：
+在管理页选择历史地震场景，点击“开始演练”。
 
-```text
-https://bark.example.com
-```
+演练会完整跑一遍：
 
-局域网备用：
+- 判断
+- 推送
+- 预警卡片
+- 地图
+- 历史记录
 
-```text
-http://服务器IP:18762
-```
+## 5. 实时源
 
-在 Bark App 中切换到这个服务器后，复制设备 Key。回到 EEW Hub 管理页添加设备：
+默认不需要填写 `WOLFX_WS_URL`。
 
-- 推送方式：`Bark`
-- Bark Key：Bark App 里复制的 Key
-- 默认城市：例如 `成都`
-- 经纬度：点击“获取位置”，或手动填写设备常驻位置
-- 阈值：先用默认 `M≥4.5`、`500km`、`烈度≥2`
-
-保存后点击“发送测试通知”。iPhone 能响，说明 Bark Server 和设备 Key 可用。
-
-浏览器定位只在你点击按钮时执行一次，系统只保存最新经纬度，不保存轨迹。iPhone/Safari 通常要求 HTTPS 或局域网可信上下文；如果浏览器拒绝定位，可以在地图 App 里复制当前位置经纬度后手动填写。
-
-## 4. 历史地震演练
-
-管理页选择一个历史地震场景，点击“开始演练”。
-
-预期结果：
-
-- iPhone 收到 Bark 通知
-- 点击通知打开这次演练的独立预警详情页
-- 详情页显示分级预警卡片和地图
-- 日志页出现演练事件和推送结果
-
-## 5. Wolfx 实时监听
-
-默认不需要填写 `WOLFX_WS_URL`。系统会按 `.env` 中的：
+常用国内源：
 
 ```env
 WOLFX_WS_BASE=wss://ws-api.wolfx.jp
 WOLFX_SOURCES=sc_eew,cq_eew,cenc_eew
 ```
 
-自动连接四川优先的国内源。状态页里看到 `sc_eew`、`cq_eew`、`cenc_eew` 至少一个 `connected` 即可；正常情况下三个都会连接。
-
-只有当 Wolfx 端点变化或你要连自定义代理时，才设置：
-
-```env
-WOLFX_WS_URL=wss://你的自定义端点
-```
-
-多个自定义端点可用英文逗号分隔。
-
-## 6. 全球特大地震源
-
-默认不需要配置。系统会连接：
+全球特大地震源：
 
 ```env
 GLOBAL_QUAKE_SOURCE_URL=wss://www.seismicportal.eu/standing_order/websocket
 GLOBAL_QUAKE_MIN_MAGNITUDE=7.5
 ```
 
-这不是本地倒计时 EEW。远距离全球特大地震只做温和提醒；如果设备位置确实靠近震中，才按本地距离和烈度展示预警。
+远距离全球特大地震只做温和提醒，不显示本地倒计时。
 
-这些参数也可以在网页“系统配置”里改。常用项默认展开，源地址、音量、铃声和重复间隔放在“高级配置”里。
+## 6. 公网访问
 
-## 7. 公网访问建议
+只在家里用，不需要公网。
 
-如果只是家庭局域网使用，不需要公网。
+如果要在外面访问管理页或让 Bark App 访问自建 Bark Server，可以用 Cloudflare Tunnel、frp 或反向代理。
 
-如果 iPhone 在外面也要访问管理页或预警页：
-
-- `18761`：EEW Hub 管理页，必须设置 `EEW_AUTH_TOKEN`
-- `18762`：Bark Server，Bark App 必须能访问它
-
-如果使用 Cloudflare Tunnel、frp 或反向代理，建议这样配置：
+建议设置：
 
 ```env
+EEW_AUTH_TOKEN=换成一段足够长的随机字符串
 PUBLIC_BASE_URL=https://eew.example.com
 BARK_BASE_URL=http://bark-server:18762
 ```
 
-Bark App 的服务器地址填：
+Bark App 里填写外部地址：
 
 ```text
 https://bark.example.com
 ```
 
-注意：`BARK_BASE_URL` 是 EEW Hub 容器访问 Bark Server 的内部地址，默认不要改；Bark App 里填写的是手机能访问的外部地址。
-
-Docker Compose 准备好了可选的 `cloudflared` 服务。你创建 Tunnel 后，把 token 填入 `.env`：
-
-```env
-CLOUDFLARED_TOKEN=你的 Cloudflare Tunnel token
-```
-
-然后启动：
-
-```bash
-docker compose --profile tunnel up -d
-```
-
-Cloudflare Public Hostname 可按下面方式指向容器服务：
-
-- `eew.example.com` -> `http://eew-hub:18761`
-- `bark.example.com` -> `http://bark-server:18762`
-
-## 8. 常用命令
+## 7. 常用命令
 
 ```bash
 docker compose logs -f eew-hub
 docker compose logs -f bark-server
 docker compose restart
-docker compose pull bark-server
 docker compose up -d --build
-```
-
-备份：
-
-```bash
-curl -X POST http://127.0.0.1:18761/api/backup \
-  -H "Authorization: Bearer $EEW_AUTH_TOKEN"
 ```
