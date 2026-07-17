@@ -21,12 +21,12 @@ jobs:
 
       - run: python3 scripts/privacy_check.py
 
+      - run: pip install -r requirements.txt -r requirements-dev.txt
+
       - run: python3 -m py_compile app/*.py scripts/privacy_check.py tests/*.py
 
       - run: npm ci
 
       - run: npm run build
-
-      - run: pip install -r requirements-dev.txt
 
       - run: PYTHONPATH=. pytest
