@@ -29,9 +29,9 @@ docker compose up -d --build
 打开：
 
 - 管理页：`http://树莓派IP:18761/`
-- 管理页和预警详情页：`http://树莓派IP:18761/`
+- Bark Server：`http://树莓派IP:18762/`
 
-`WOLFX_WS_URL` 默认留空即可。当前本机 `.env` 使用四川优先源：`sc_eew,cq_eew,cenc_eew`。全球特大地震源默认使用 EMSC WebSocket：`wss://www.seismicportal.eu/standing_order/websocket`。
+`WOLFX_WS_URL` 默认留空即可。系统会按 `WOLFX_WS_BASE` 和 `WOLFX_SOURCES` 自动拼接 Wolfx WebSocket。全球特大地震源默认使用 EMSC WebSocket：`wss://www.seismicportal.eu/standing_order/websocket`。
 
 ## 线上访问安全
 
@@ -117,6 +117,12 @@ curl -X POST http://树莓派IP:18761/api/config/import \
 
 管理页选择一个历史地震场景后点击“开始演练”。系统会完整跑一遍判断、Bark 推送、独立详情页、地图和日志记录。
 
+## 三类记录
+
+- 实时地震记录：系统从已连接实时源收到的地震，小震、远震也会显示。
+- 预警历史：从实时地震记录中筛选出进入预警判断链路的事件。
+- 推送历史：预警历史里实际发送到 Apple 设备的通知结果。
+
 ## 全球特大地震
 
 全球特大地震使用 EMSC/SeismicPortal standing order WebSocket。默认只处理 `M7.5+`，用户离震中很远时按最温和等级提醒，并且不显示本地横波倒计时；如果设备确实在震中附近，则按本地距离、烈度和到达状态展示。
@@ -151,6 +157,8 @@ curl -X POST http://树莓派IP:18761/api/config/import \
 
 不要提交 `.env`、`data/`、SQLite 数据库、真实 Bark Key、真实手机号或私有账号。
 
+本项目不做实时 GPS 追踪，只保存每台设备的最新位置。
+
 提交前运行：
 
 ```bash
@@ -165,3 +173,7 @@ python3 scripts/privacy_check.py
 docker compose run --rm -v "$PWD:/src" --entrypoint sh eew-hub \
   -c "cd /src && pip install -r requirements-dev.txt && PYTHONPATH=/src pytest"
 ```
+
+## License
+
+MIT

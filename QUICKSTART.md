@@ -18,7 +18,7 @@
 ## 1. 启动
 
 ```bash
-cd /home/pi/apps/projects/raspi-eew-hub
+cd raspi-eew-hub
 cp example.env .env
 docker compose up -d --build
 ```
@@ -34,7 +34,7 @@ curl http://127.0.0.1:18762/ping
 打开管理页：
 
 ```text
-https://h-eew.111184.xyz/
+http://树莓派IP:18761/
 ```
 
 预警详情页不需要手动打开。Bark 通知会指向这次地震的独立页面 `/event/{event_id}`。
@@ -57,10 +57,10 @@ docker compose up -d
 
 ## 3. iPhone Bark App 连接自建 Server
 
-优先使用 Cloudflare 地址：
+如果已经配置公网访问，填写你的 Bark Server 外部地址，例如：
 
 ```text
-https://h-bark.111184.xyz
+https://bark.example.com
 ```
 
 局域网备用：
@@ -133,22 +133,22 @@ GLOBAL_QUAKE_MIN_MAGNITUDE=7.5
 - `18761`：EEW Hub 管理页，必须设置 `EEW_AUTH_TOKEN`
 - `18762`：Bark Server，Bark App 必须能访问它
 
-当前已配置两个 Cloudflare 域名：
+如果使用 Cloudflare Tunnel、frp 或反向代理，建议这样配置：
 
 ```env
-PUBLIC_BASE_URL=https://h-eew.111184.xyz
+PUBLIC_BASE_URL=https://eew.example.com
 BARK_BASE_URL=http://bark-server:18762
 ```
 
 Bark App 的服务器地址填：
 
 ```text
-https://h-bark.111184.xyz
+https://bark.example.com
 ```
 
 注意：`BARK_BASE_URL` 是 EEW Hub 容器访问 Bark Server 的内部地址，默认不要改；Bark App 里填写的是手机能访问的外部地址。
 
-Cloudflare Zero Trust Tunnel 准备好了 `cloudflared` 服务。拿到 Tunnel token 后填入 `.env`：
+Docker Compose 准备好了可选的 `cloudflared` 服务。你创建 Tunnel 后，把 token 填入 `.env`：
 
 ```env
 CLOUDFLARED_TOKEN=你的 Cloudflare Tunnel token
@@ -160,10 +160,10 @@ CLOUDFLARED_TOKEN=你的 Cloudflare Tunnel token
 docker compose --profile tunnel up -d
 ```
 
-当前 Tunnel 已添加两个 Public Hostname：
+Cloudflare Public Hostname 可按下面方式指向容器服务：
 
-- `h-eew.111184.xyz` -> `http://localhost:18761`
-- `h-bark.111184.xyz` -> `http://localhost:18762`
+- `eew.example.com` -> `http://eew-hub:18761`
+- `bark.example.com` -> `http://bark-server:18762`
 
 ## 8. 常用命令
 

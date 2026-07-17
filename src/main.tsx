@@ -1119,7 +1119,7 @@ function App() {
       <section className="quick panel">
         <h2>快速开始</h2>
         <ol>
-          <li>Bark App 服务器填 <b>https://h-bark.111184.xyz</b>。</li>
+          <li>Bark App 服务器填你的 Bark Server 地址，例如 <b>https://bark.example.com</b>。</li>
           <li>复制 Bark 推送地址或 Key，保存 Apple 设备。</li>
           <li>点“测试通知”确认 iPhone 能响。</li>
           <li>选择历史地震场景，点“开始演练”。</li>
@@ -1136,7 +1136,7 @@ function App() {
         <form onSubmit={saveDevice}>
           <div className="two">
             <label>设备名称<input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="你的 Apple 设备" /></label>
-            <label>Bark Key 或从 Bark App 复制的推送地址<input value={form.bark_key} onChange={(e) => setForm({ ...form, bark_key: e.target.value })} placeholder="https://h-bark.111184.xyz/你的Key/推送内容" /></label>
+            <label>Bark Key 或从 Bark App 复制的推送地址<input value={form.bark_key} onChange={(e) => setForm({ ...form, bark_key: e.target.value })} placeholder="https://bark.example.com/你的Key/推送内容" /></label>
           </div>
           <div className="three locationRow">
             <label>城市<input value={form.default_city} onChange={(e) => setForm({ ...form, default_city: e.target.value })} placeholder="成都" /></label>
