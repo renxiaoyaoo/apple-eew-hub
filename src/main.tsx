@@ -94,6 +94,19 @@ type Logs = {
     message: string;
     created_at: string;
   }>;
+  observed_events: Array<{
+    event_id: string;
+    source: string;
+    epicenter: string;
+    latitude: number;
+    longitude: number;
+    magnitude: number;
+    depth_km: number;
+    origin_time: string;
+    recorded: number | boolean;
+    reason: string;
+    updated_at: string;
+  }>;
 };
 
 type PushEventGroup = {
@@ -332,7 +345,7 @@ function sourceName(name: string) {
     drill: "演练",
     test: "测试通知",
     wolfx: "Wolfx",
-    emsc_global: "EMSC 全球特大地震预警",
+    emsc_global: "EMSC 全球地震",
   };
   return names[name] ?? name;
 }
@@ -401,7 +414,7 @@ function App() {
   const [status, setStatus] = useState<Status | null>(null);
   const [devices, setDevices] = useState<Device[]>([]);
   const [latest, setLatest] = useState<LatestAlert>({});
-  const [logs, setLogs] = useState<Logs>({ events: [], decisions: [], pushes: [] });
+  const [logs, setLogs] = useState<Logs>({ events: [], decisions: [], pushes: [], observed_events: [] });
   const [message, setMessage] = useState("");
   const [editingId, setEditingId] = useState<number | null>(null);
   const [selectedDrill, setSelectedDrill] = useState(drillPresets[0].id);
@@ -515,6 +528,10 @@ function App() {
   const connectedSources = sourceStates.filter(([, state]) => state.connected).length;
   const visiblePushes = logs.pushes.filter((item) => !hideTestHistory || !item.test);
   const visibleEvents = logs.events.filter((item) => !hideTestHistory || !item.test);
+  const visibleObservedEvents = logs.observed_events.filter((item, index, items) => {
+    const key = canonicalLogEventId(item.event_id);
+    return items.findIndex((candidate) => canonicalLogEventId(candidate.event_id) === key) === index;
+  });
   const dedupedVisibleEvents = visibleEvents.filter((item, index, items) => {
     const key = canonicalLogEventId(item.event_id);
     return items.findIndex((candidate) => canonicalLogEventId(candidate.event_id) === key) === index;
@@ -557,6 +574,7 @@ function App() {
   const displayCity = activeDevice?.default_city || "成都";
   const isFarGlobalBrief = event.source === "emsc_global" && decision.distance_km > (activeDevice?.max_distance_km ?? 500);
   const isEventHistoryPage = routePath === "/history";
+  const isCatalogPage = routePath === "/catalog";
   const isPushHistoryPage = routePath === "/pushes";
   const isRulesPage = routePath === "/rules";
   const isSettingsPage = routePath === "/settings";
@@ -785,6 +803,39 @@ function App() {
     </section>
   );
 
+  const renderCatalogSection = (limit?: number) => (
+    <section className="panel eventLogPanel">
+      <div className="sectionHead">
+        <div>
+          <h2>监听目录</h2>
+        </div>
+        <div className="historyActions">
+          <span>{visibleObservedEvents.length} 条</span>
+        </div>
+      </div>
+      <div className="eventLogList">
+        {visibleObservedEvents.slice(0, limit ?? visibleObservedEvents.length).map((item) => {
+          const inWarningHistory = Boolean(item.recorded);
+          return (
+            <a
+              key={item.event_id}
+              className="eventLogItem"
+              href={inWarningHistory ? `/event/${encodeURIComponent(item.event_id)}` : "/catalog"}
+            >
+              <div>
+                <span>{item.epicenter}</span>
+                <small>{sourceName(item.source)} · {formatEventTime(item.origin_time)}</small>
+              </div>
+              <b>M{item.magnitude.toFixed(1)}</b>
+              <small>深度 {item.depth_km} km</small>
+              <em className={inWarningHistory ? "pushed" : "notPushed"}>{item.reason || (inWarningHistory ? "已入预警历史" : "仅监听到")}</em>
+            </a>
+          );
+        })}
+      </div>
+    </section>
+  );
+
   const historyLinks = (
     <section className="panel historyNavPanel">
       <div className="sectionHead">
@@ -796,6 +847,10 @@ function App() {
         <a href="/history">
           <span>地震历史</span>
           <b>{dedupedVisibleEvents.length} 条</b>
+        </a>
+        <a href="/catalog">
+          <span>监听目录</span>
+          <b>{visibleObservedEvents.length} 条</b>
         </a>
         <a href="/pushes">
           <span>推送历史</span>
@@ -834,6 +889,7 @@ function App() {
               <li>国内预警源收到的地震会记录，用于追踪报数、修正报和取消报。</li>
               <li>全球 EMSC 事件只有两类会记录：全球特大地震 M{status?.global_quake_min_magnitude ?? 7.5}+，或对某台设备同时满足距离、震级和本地烈度。</li>
               <li>EMSC 本地烈度要求至少为 2，并且不低于这台设备设置的最低烈度。</li>
+              <li>未进入预警历史的 EMSC 事件会进入监听目录，用来确认系统确实听到了哪些事件。</li>
               <li>测试通知和演练会记录，方便检查推送是否正常。</li>
             </ul>
           </div>
@@ -1008,9 +1064,21 @@ function App() {
       <main className="appShell">
         {historyPageHeader(
           "地震历史",
-          `只记录本地相关事件和全球 M${status?.global_quake_min_magnitude ?? 7.5}+ 特大地震，不收集每一次全球小震。`,
+          `只记录本地相关事件和全球 M${status?.global_quake_min_magnitude ?? 7.5}+ 特大地震。普通监听记录请看监听目录。`,
         )}
         {renderEventLogSection()}
+      </main>
+    );
+  }
+
+  if (isCatalogPage) {
+    return (
+      <main className="appShell">
+        {historyPageHeader(
+          "监听目录",
+          "只显示系统从实时监听源收到的事件，不做定时目录拉取。",
+        )}
+        {renderCatalogSection()}
       </main>
     );
   }

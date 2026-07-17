@@ -76,6 +76,20 @@ CREATE TABLE IF NOT EXISTS app_state (
   value TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS observed_events (
+  event_id TEXT PRIMARY KEY,
+  source TEXT NOT NULL,
+  epicenter TEXT NOT NULL,
+  latitude REAL NOT NULL,
+  longitude REAL NOT NULL,
+  magnitude REAL NOT NULL,
+  depth_km REAL NOT NULL,
+  origin_time TEXT NOT NULL,
+  recorded INTEGER NOT NULL DEFAULT 0,
+  reason TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
 """
 
 
@@ -102,6 +116,7 @@ class Database:
         if "push_phase" not in push_columns:
             conn.execute("ALTER TABLE pushes ADD COLUMN push_phase TEXT NOT NULL DEFAULT 'initial'")
         conn.execute("UPDATE events SET depth_km = ABS(depth_km) WHERE depth_km < 0")
+        conn.execute("UPDATE observed_events SET depth_km = ABS(depth_km) WHERE depth_km < 0")
         conn.commit()
 
     def execute(self, sql: str, params: Iterable[Any] = ()) -> sqlite3.Cursor:
@@ -134,6 +149,50 @@ class Database:
             return default
         return json.loads(row["value"])
 
+    def record_observed_event(self, event: Any, recorded: bool, reason: str = "") -> None:
+        now = utc_now()
+        self.execute(
+            """
+            INSERT INTO observed_events
+            (event_id, source, epicenter, latitude, longitude, magnitude, depth_km,
+             origin_time, recorded, reason, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(event_id) DO UPDATE SET
+              source=excluded.source, epicenter=excluded.epicenter,
+              latitude=excluded.latitude, longitude=excluded.longitude,
+              magnitude=excluded.magnitude, depth_km=excluded.depth_km,
+              origin_time=excluded.origin_time,
+              recorded=MAX(observed_events.recorded, excluded.recorded),
+              reason=excluded.reason,
+              updated_at=excluded.updated_at
+            """,
+            (
+                event.event_id,
+                event.source,
+                event.epicenter,
+                event.latitude,
+                event.longitude,
+                event.magnitude,
+                abs(event.depth_km),
+                event.origin_time,
+                int(recorded),
+                reason,
+                now,
+                now,
+            ),
+        )
+
+    def prune_observed_events(self, max_events: int) -> None:
+        self.execute(
+            """
+            DELETE FROM observed_events
+            WHERE event_id NOT IN (
+              SELECT event_id FROM observed_events ORDER BY updated_at DESC LIMIT ?
+            )
+            """,
+            (max_events,),
+        )
+
     def prune_logs(self, max_events: int, max_decisions: int, max_pushes: int) -> None:
         self.execute(
             """
@@ -162,3 +221,4 @@ class Database:
             """,
             (max_events,),
         )
+        self.prune_observed_events(max_events)

@@ -8,7 +8,7 @@ from typing import Any
 
 import websockets
 
-from .config import get_system_config
+from .config import get_system_config, settings
 from .core import decide_for_device, normalize_device, process_event
 from .db import Database
 from .models import EarthquakeEvent
@@ -89,6 +89,20 @@ def should_record_global_event(db: Database, event: EarthquakeEvent) -> bool:
     return False
 
 
+def global_record_reason(db: Database, event: EarthquakeEvent) -> str:
+    if event.magnitude >= get_system_config()["global_min_magnitude"]:
+        return "全球特大地震"
+    devices = [normalize_device(row) for row in db.query("SELECT * FROM devices WHERE enabled = 1 ORDER BY id")]
+    for device in devices:
+        decision = decide_for_device(event, device)
+        record_intensity = max(2, device["min_intensity"])
+        if decision.should_push:
+            return "满足设备推送条件"
+        if decision.distance_km <= device["max_distance_km"] and event.magnitude >= device["min_magnitude"] and decision.intensity >= record_intensity:
+            return "满足设备本地烈度"
+    return "仅监听到"
+
+
 class GlobalQuakeListener:
     def __init__(self, db: Database):
         self.db = db
@@ -156,5 +170,9 @@ class GlobalQuakeListener:
                 except json.JSONDecodeError:
                     continue
                 event = normalize_emsc_message(message)
-                if event and should_record_global_event(self.db, event):
-                    await process_event(self.db, event)
+                if event:
+                    should_record = should_record_global_event(self.db, event)
+                    self.db.record_observed_event(event, should_record, global_record_reason(self.db, event))
+                    self.db.prune_observed_events(settings.max_events)
+                    if should_record:
+                        await process_event(self.db, event)

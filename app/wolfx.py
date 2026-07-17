@@ -142,6 +142,7 @@ class WolfxListener:
                             continue
                         event = normalize_wolfx_message(data, source_hint=source)
                         if event:
+                            self.db.record_observed_event(event, True, "国内预警源")
                             await process_event(self.db, event)
             except asyncio.CancelledError:
                 raise

@@ -80,6 +80,11 @@ async def history_page() -> FileResponse:
     return FileResponse(Path(__file__).resolve().parent.parent / "public" / "index.html")
 
 
+@app.get("/catalog")
+async def catalog_page() -> FileResponse:
+    return FileResponse(Path(__file__).resolve().parent.parent / "public" / "index.html")
+
+
 @app.get("/pushes")
 async def pushes_page() -> FileResponse:
     return FileResponse(Path(__file__).resolve().parent.parent / "public" / "index.html")
@@ -369,6 +374,15 @@ async def logs() -> dict:
             LEFT JOIN events ON events.event_id = p.event_id
             ORDER BY p.id DESC
             LIMIT 200
+            """
+        ),
+        "observed_events": db.query(
+            """
+            SELECT event_id, source, epicenter, latitude, longitude, magnitude, depth_km,
+                   origin_time, recorded, reason, created_at, updated_at
+            FROM observed_events
+            ORDER BY updated_at DESC
+            LIMIT 300
             """
         ),
     }

@@ -1,5 +1,5 @@
 from app.db import Database
-from app.global_quakes import normalize_emsc_message, should_record_global_event
+from app.global_quakes import global_record_reason, normalize_emsc_message, should_record_global_event
 
 
 def test_normalize_emsc_message_accepts_standing_order_payload():
@@ -134,6 +134,33 @@ def test_should_not_record_far_low_intensity_mindanao_event(tmp_path):
 
     assert event is not None
     assert should_record_global_event(db, event) is False
+
+
+def test_far_low_intensity_event_can_be_kept_in_observed_catalog(tmp_path):
+    db = Database(tmp_path / "eew.sqlite3")
+    db.init()
+    insert_device(db)
+    event = normalize_emsc_message(
+        {
+            "data": {
+                "geometry": {"coordinates": [125.1655, 5.3269, -67.9]},
+                "properties": {"unid": "mindanao", "mag": 6.2, "depth": 67.9, "flynn_region": "MINDANAO, PHILIPPINES"},
+            }
+        }
+    )
+
+    assert event is not None
+    should_record = should_record_global_event(db, event)
+    db.record_observed_event(event, should_record, global_record_reason(db, event))
+    observed = db.one("SELECT event_id, recorded, reason, depth_km FROM observed_events WHERE event_id = ?", (event.event_id,))
+    promoted = db.one("SELECT event_id FROM events WHERE event_id = ?", (event.event_id,))
+
+    assert should_record is False
+    assert observed is not None
+    assert observed["recorded"] == 0
+    assert observed["reason"] == "仅监听到"
+    assert observed["depth_km"] == 67.9
+    assert promoted is None
 
 
 def test_should_record_global_major_quake_even_when_far(tmp_path):
