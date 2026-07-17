@@ -161,7 +161,7 @@ class GlobalQuakeListener:
             ping_interval=15,
             ping_timeout=20,
             compression=None,
-            user_agent_header="raspi-eew-hub/0.1",
+            user_agent_header="apple-eew-hub/0.1",
         ) as ws:
             self._set_state(True, "connected")
             async for raw_message in ws:

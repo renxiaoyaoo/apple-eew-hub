@@ -132,7 +132,7 @@ class WolfxListener:
                     ping_interval=20,
                     ping_timeout=20,
                     compression=None,
-                    user_agent_header="raspi-eew-hub/0.1",
+                    user_agent_header="apple-eew-hub/0.1",
                 ) as ws:
                     self._set_source_state(source, {"connected": True, "message": "connected", "url": url})
                     async for message in ws:

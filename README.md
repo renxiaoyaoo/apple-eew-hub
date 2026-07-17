@@ -1,6 +1,6 @@
 # Apple 设备地震预警系统
 
-一个可部署在树莓派上的私有地震预警中枢，为你的 Apple 设备提供地震预警提醒。可为每台设备单独设置位置和推送条件。
+一个可部署在任意 Docker 主机上的私有地震预警中枢，为你的 Apple 设备提供地震预警提醒。可为每台设备单独设置位置和推送条件。家用服务器、迷你主机、NAS、树莓派、云服务器都可以运行。
 
 ## 当前 MVP
 
@@ -13,7 +13,7 @@
 - 测试推送
 - 模拟地震演练
 - Docker Compose 一键部署
-- 配置备份和提交前隐私检查脚本
+- 配置备份、GitHub Actions 和本地 pre-commit 隐私检查
 
 ## 部署
 
@@ -28,8 +28,10 @@ docker compose up -d --build
 
 打开：
 
-- 管理页：`http://树莓派IP:18761/`
-- Bark Server：`http://树莓派IP:18762/`
+- 管理页：`http://服务器IP:18761/`
+- Bark Server：`http://服务器IP:18762/`
+
+把 `服务器IP` 换成你的服务器、NAS、树莓派或其他 Docker 主机 IP。
 
 `WOLFX_WS_URL` 默认留空即可。系统会按 `WOLFX_WS_BASE` 和 `WOLFX_SOURCES` 自动拼接 Wolfx WebSocket。全球特大地震源默认使用 EMSC WebSocket：`wss://www.seismicportal.eu/standing_order/websocket`。
 
@@ -47,7 +49,7 @@ PUBLIC_BASE_URL=https://你的访问域名
 健康检查：
 
 ```bash
-curl http://树莓派IP:18761/api/health
+curl http://服务器IP:18761/api/health
 docker compose ps
 ```
 
@@ -88,7 +90,7 @@ Webhook payload 包含 `title`、`body`、`event` 和 `decision`。
 请求示例：
 
 ```bash
-curl -X POST http://树莓派IP:18761/api/devices/1/location \
+curl -X POST http://服务器IP:18761/api/devices/1/location \
   -H 'Content-Type: application/json' \
   -d '{"default_city":"成都双流","latitude":30.58,"longitude":103.92}'
 ```
@@ -101,13 +103,13 @@ curl -X POST http://树莓派IP:18761/api/devices/1/location \
 
 ```bash
 curl -H "Authorization: Bearer $EEW_AUTH_TOKEN" \
-  http://树莓派IP:18761/api/config/export
+  http://服务器IP:18761/api/config/export
 ```
 
 导入配置前系统会自动备份当前 SQLite：
 
 ```bash
-curl -X POST http://树莓派IP:18761/api/config/import \
+curl -X POST http://服务器IP:18761/api/config/import \
   -H "Authorization: Bearer $EEW_AUTH_TOKEN" \
   -H 'Content-Type: application/json' \
   -d @config.json
@@ -159,9 +161,13 @@ curl -X POST http://树莓派IP:18761/api/config/import \
 
 本项目不做实时 GPS 追踪，只保存每台设备的最新位置。
 
-提交前运行：
+仓库内置两层常规检查：
+
+- GitHub Actions：每次 push / pull request 自动运行隐私检查、前端构建、Python 编译和 pytest。
+- 本地 pre-commit：运行下面命令后，每次 `git commit` 前自动执行隐私检查。
 
 ```bash
+./scripts/install_git_hooks.sh
 python3 scripts/privacy_check.py
 ```
 

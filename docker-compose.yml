@@ -1,7 +1,7 @@
 services:
   eew-hub:
     build: .
-    container_name: raspi-eew-hub
+    container_name: apple-eew-hub
     restart: unless-stopped
     depends_on:
       bark-server:
@@ -45,7 +45,7 @@ services:
 
   bark-server:
     image: ghcr.io/finb/bark-server:latest
-    container_name: raspi-eew-bark
+    container_name: apple-eew-bark
     restart: unless-stopped
     command: ["bark-server", "--addr", "0.0.0.0:18762", "--data", "/data"]
     ports:
@@ -55,7 +55,7 @@ services:
 
   cloudflared:
     image: cloudflare/cloudflared:latest
-    container_name: raspi-eew-cloudflared
+    container_name: apple-eew-cloudflared
     restart: unless-stopped
     profiles:
       - tunnel

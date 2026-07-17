@@ -1,6 +1,6 @@
 # Quick Start
 
-目标：树莓派上一次启动两个服务：
+目标：在任意 Docker 主机上一次启动两个服务：
 
 - `eew-hub`：地震预警判断和 Web 管理页
 - `bark-server`：自建 Bark Server
@@ -18,7 +18,7 @@
 ## 1. 启动
 
 ```bash
-cd raspi-eew-hub
+cd apple-eew-hub
 cp example.env .env
 docker compose up -d --build
 ```
@@ -34,7 +34,7 @@ curl http://127.0.0.1:18762/ping
 打开管理页：
 
 ```text
-http://树莓派IP:18761/
+http://服务器IP:18761/
 ```
 
 预警详情页不需要手动打开。Bark 通知会指向这次地震的独立页面 `/event/{event_id}`。
@@ -66,7 +66,7 @@ https://bark.example.com
 局域网备用：
 
 ```text
-http://树莓派IP:18762
+http://服务器IP:18762
 ```
 
 在 Bark App 中切换到这个服务器后，复制设备 Key。回到 EEW Hub 管理页添加设备：

@@ -8,7 +8,7 @@ from typing import Any
 
 @dataclass(frozen=True)
 class Settings:
-    app_name: str = "Raspberry Pi EEW Hub"
+    app_name: str = "Apple EEW Hub"
     data_dir: Path = Path(os.getenv("EEW_DATA_DIR", "/data"))
     wolfx_ws_url: str = os.getenv("WOLFX_WS_URL", "")
     wolfx_ws_base: str = os.getenv("WOLFX_WS_BASE", "wss://ws-api.wolfx.jp")
