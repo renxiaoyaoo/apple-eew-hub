@@ -3,7 +3,9 @@
 目标：在任意 Docker 主机上一次启动两个服务：
 
 - `eew-hub`：地震预警判断和 Web 管理页
-- `bark-server`：自建 Bark Server
+- `bark-server`：自建 Bark Server，可直接给 Bark App 使用
+
+Bark 是推荐的 Apple 设备通知方式，但不是必需。你也可以只使用 ntfy、Webhook，或者先不配置推送设备，只查看实时地震记录、预警历史、演练和地图。
 
 默认四川优先接入 Wolfx 当前公开 WebSocket：
 
@@ -57,6 +59,8 @@ docker compose up -d
 
 ## 3. iPhone Bark App 连接自建 Server
 
+如果你不用 Bark，可以跳过这一节，在设备里改用 ntfy 或 Webhook。
+
 如果已经配置公网访问，填写你的 Bark Server 外部地址，例如：
 
 ```text
@@ -77,7 +81,7 @@ http://服务器IP:18762
 - 经纬度：点击“获取位置”，或手动填写设备常驻位置
 - 阈值：先用默认 `M≥4.5`、`500km`、`烈度≥2`
 
-保存后点击“发送测试通知”。iPhone 能响，才继续下一步。
+保存后点击“发送测试通知”。iPhone 能响，说明 Bark Server 和设备 Key 可用。
 
 浏览器定位只在你点击按钮时执行一次，系统只保存最新经纬度，不保存轨迹。iPhone/Safari 通常要求 HTTPS 或局域网可信上下文；如果浏览器拒绝定位，可以在地图 App 里复制当前位置经纬度后手动填写。
 

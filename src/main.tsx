@@ -1100,7 +1100,7 @@ function App() {
       <section className="heroBlock">
         <div>
           <h1>Apple 设备地震预警系统</h1>
-          <p className="heroText">为你的 Apple 设备提供地震预警提醒。可为每台设备单独设置位置和推送条件。</p>
+          <p className="heroText">自建地震预警中枢，默认可配套自己的 Bark Server，也支持 ntfy 和 Webhook。可为每台 Apple 设备单独设置位置和推送条件。</p>
         </div>
         <div className="statusCard">
           <div className="statusMain">
@@ -1121,6 +1121,7 @@ function App() {
         <ol>
           <li>Bark App 服务器填你的 Bark Server 地址，例如 <b>https://bark.example.com</b>。</li>
           <li>复制 Bark 推送地址或 Key，保存 Apple 设备。</li>
+          <li>不用 Bark 也可以改用 ntfy 或 Webhook。</li>
           <li>点“测试通知”确认 iPhone 能响。</li>
           <li>选择历史地震场景，点“开始演练”。</li>
         </ol>

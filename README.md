@@ -1,12 +1,13 @@
 # Apple 设备地震预警系统
 
-一个可部署在任意 Docker 主机上的私有地震预警中枢，为你的 Apple 设备提供地震预警提醒。可为每台设备单独设置位置和推送条件。家用服务器、迷你主机、NAS、树莓派、云服务器都可以运行。
+一个可部署在任意 Docker 主机上的私有地震预警中枢，自带可选的自建 Bark Server，也支持 ntfy 和 Webhook。它可以为你的 Apple 设备提供地震预警提醒，并为每台设备单独设置位置和推送条件。家用服务器、迷你主机、NAS、树莓派、云服务器都可以运行。
 
 ## 当前 MVP
 
 - Wolfx WebSocket 监听骨架，支持 `cenc_eew`、`sc_eew`、`cq_eew`、`fj_eew`、`jma_eew`、`all_eew`
 - EMSC/SeismicPortal WebSocket 全球特大地震预警，默认 `M7.5+`
-- Bark 推送
+- 自建 Bark Server：Docker Compose 默认一起启动，可直接给 Bark App 使用
+- Bark / ntfy / Webhook 多通道推送；Bark 是推荐方式，但不是必需
 - 多设备管理：城市、经纬度、震级、距离、烈度阈值
 - SQLite 日志：事件、判断、推送结果
 - 红 / 黄 / 蓝分级预警详情页和地图
@@ -24,7 +25,7 @@ cp example.env .env
 docker compose up -d --build
 ```
 
-不复制 `.env` 也可以启动；复制后更方便填写 Wolfx 地址、Bark 服务地址和公网访问地址。
+不复制 `.env` 也可以启动；复制后更方便填写 Wolfx 地址、Bark 服务地址和公网访问地址。默认 Compose 会同时启动 EEW Hub 和 Bark Server。
 
 打开：
 
@@ -53,9 +54,11 @@ curl http://服务器IP:18761/api/health
 docker compose ps
 ```
 
-## Bark
+## 自建 Bark Server
 
-设备里填写 Bark Key。推送参数使用：
+Docker Compose 默认会启动 `bark-server`，你可以把 Bark App 的服务器地址切换到自己的域名或局域网地址，再把设备 Key 填进 EEW Hub。
+
+推荐使用 Bark，因为 iPhone 上的提醒效果最好。Bark 推送参数使用：
 
 - `sound=alarm`
 - 红 / 黄等级使用 `level=critical`
@@ -65,6 +68,14 @@ docker compose ps
 - `url` 指向这次地震的独立详情页 `/event/{event_id}`
 
 iOS 是否能达到 critical 级别取决于 Bark 客户端、系统权限和应用能力。MVP 使用高优先级、特殊铃声和网页卡片补充。
+
+## Bark 是否必需
+
+不必需。Bark 是推荐的 Apple 设备通知通道，但系统可以不使用 Bark：
+
+- 使用 `ntfy`：填写 topic URL。
+- 使用 `webhook`：对接 Home Assistant、Node-RED 或你自己的自动化。
+- 不配置推送设备：仍可使用实时地震记录、预警历史、演练、地图和独立预警页。
 
 ## ntfy / Webhook
 
