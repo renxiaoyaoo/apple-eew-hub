@@ -203,7 +203,7 @@ const defaultSystemConfig: SystemConfig = {
   wolfx_enabled: true,
   wolfx_ws_url: "",
   wolfx_ws_base: "wss://ws-api.wolfx.jp",
-  wolfx_sources: ["sc_eew", "cq_eew", "cenc_eew"],
+  wolfx_sources: ["sc_eew", "cq_eew", "cenc_eew", "jma_eew"],
   global_enabled: true,
   global_source_url: "wss://www.seismicportal.eu/standing_order/websocket",
   global_min_magnitude: 7.5,

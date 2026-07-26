@@ -11,7 +11,7 @@ services:
     environment:
       WOLFX_WS_URL: ${WOLFX_WS_URL:-}
       WOLFX_WS_BASE: ${WOLFX_WS_BASE:-wss://ws-api.wolfx.jp}
-      WOLFX_SOURCES: ${WOLFX_SOURCES:-sc_eew,cq_eew,cenc_eew}
+      WOLFX_SOURCES: ${WOLFX_SOURCES:-sc_eew,cq_eew,cenc_eew,jma_eew}
       WOLFX_LISTENER_ENABLED: ${WOLFX_LISTENER_ENABLED:-1}
       GLOBAL_QUAKE_LISTENER_ENABLED: ${GLOBAL_QUAKE_LISTENER_ENABLED:-1}
       GLOBAL_QUAKE_SOURCE_URL: ${GLOBAL_QUAKE_SOURCE_URL:-wss://www.seismicportal.eu/standing_order/websocket}

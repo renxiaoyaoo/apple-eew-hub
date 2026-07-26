@@ -15,7 +15,7 @@ class Settings:
     wolfx_sources: tuple[str, ...] = tuple(
         s.strip()
         for s in os.getenv(
-            "WOLFX_SOURCES", "sc_eew,cq_eew,cenc_eew"
+            "WOLFX_SOURCES", "sc_eew,cq_eew,cenc_eew,jma_eew"
         ).split(",")
         if s.strip()
     )

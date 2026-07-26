@@ -124,6 +124,7 @@ class WolfxListener:
         )
 
     async def _run_endpoint(self, source: str, url: str) -> None:
+        retry_delay = 5
         while self.running:
             try:
                 self._set_source_state(source, {"connected": False, "message": "connecting", "url": url})
@@ -134,6 +135,7 @@ class WolfxListener:
                     compression=None,
                     user_agent_header="apple-eew-hub/0.1",
                 ) as ws:
+                    retry_delay = 5
                     self._set_source_state(source, {"connected": True, "message": "connected", "url": url})
                     async for message in ws:
                         try:
@@ -149,4 +151,5 @@ class WolfxListener:
             except Exception as exc:
                 LOGGER.warning("Wolfx listener error for %s: %s", source, exc)
                 self._set_source_state(source, {"connected": False, "message": str(exc), "url": url})
-                await asyncio.sleep(5)
+                await asyncio.sleep(retry_delay)
+                retry_delay = min(retry_delay * 2, 60)

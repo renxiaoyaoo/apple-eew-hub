@@ -64,7 +64,7 @@ http://服务器IP:18761/
 
 ```env
 WOLFX_WS_BASE=wss://ws-api.wolfx.jp
-WOLFX_SOURCES=sc_eew,cq_eew,cenc_eew
+WOLFX_SOURCES=sc_eew,cq_eew,cenc_eew,jma_eew
 ```
 
 全球特大地震源：
