@@ -911,6 +911,43 @@ details[open] summary {
   gap: 12px;
 }
 
+.flowPanel {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.flowPanel > div {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 3px 10px;
+  align-items: center;
+  border: 1px solid #dfd2c3;
+  border-radius: 8px;
+  background: #fffaf4;
+  padding: 12px;
+}
+
+.flowPanel b {
+  grid-row: span 2;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: #2f2a24;
+  color: #fff7ed;
+}
+
+.flowPanel span {
+  font-size: 17px;
+  font-weight: 850;
+}
+
+.flowPanel small {
+  color: #75685d;
+}
+
 .rulesGrid > div,
 .ruleDeviceList > div {
   border: 1px solid #dfd2c3;
@@ -1119,6 +1156,7 @@ details[open] summary {
   .quick,
   .quick ol,
   .historyNav,
+  .flowPanel,
   .rulesGrid,
   .pushSettingGrid,
   .threeCards,

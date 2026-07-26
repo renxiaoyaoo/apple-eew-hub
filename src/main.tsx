@@ -536,6 +536,10 @@ function App() {
     const key = canonicalLogEventId(item.event_id);
     return items.findIndex((candidate) => canonicalLogEventId(candidate.event_id) === key) === index;
   });
+  const decisionByEvent = new Map(logs.decisions.map((item) => [item.event_id, item]));
+  const alertVisibleEvents = dedupedVisibleEvents.filter((item) =>
+    Boolean((decisionByEvent.get(item.event_id) ?? decisionByEvent.get(canonicalLogEventId(item.event_id)))?.should_push)
+  );
   const groupedPushEvents = Array.from(visiblePushes.reduce((groups, item) => {
     const key = canonicalLogEventId(item.event_id);
     const current = groups.get(key);
@@ -570,7 +574,6 @@ function App() {
     }
     return groups;
   }, new Map<string, PushEventGroup>()).values()).sort((a, b) => (timeMs(b.latestAt) ?? 0) - (timeMs(a.latestAt) ?? 0));
-  const decisionByEvent = new Map(logs.decisions.map((item) => [item.event_id, item]));
   const displayCity = activeDevice?.default_city || "成都";
   const isFarGlobalBrief = event.source === "emsc_global" && decision.distance_km > (activeDevice?.max_distance_km ?? 500);
   const isEventHistoryPage = routePath === "/history";
@@ -653,16 +656,16 @@ function App() {
   }
 
   async function clearPushHistory() {
-    if (!window.confirm("确定清除推送历史吗？预警历史会保留。")) return;
+    if (!window.confirm("确定清除发出的通知吗？触发的预警会保留。")) return;
     await api<{ ok: boolean }>("/api/logs/pushes", { method: "DELETE" });
-    setMessage("推送历史已清除。");
+    setMessage("发出的通知已清除。");
     await refresh();
   }
 
   async function clearEventHistory() {
-    if (!window.confirm("确定清除预警历史吗？相关判断和推送记录也会一起清除。")) return;
+    if (!window.confirm("确定清除触发的预警吗？相关判断和通知发送结果也会一起清除。")) return;
     await api<{ ok: boolean }>("/api/logs/events", { method: "DELETE" });
-    setMessage("预警历史已清除。");
+    setMessage("触发的预警已清除。");
     await refresh();
   }
 
@@ -741,12 +744,12 @@ function App() {
     <section className="panel historyPanel">
       <div className="sectionHead">
         <div>
-          <h2>推送历史</h2>
+          <h2>发出的通知</h2>
         </div>
         <div className="historyActions">
           <label className="toggle"><input type="checkbox" checked={hideTestHistory} onChange={(event) => setHideTestHistory(event.target.checked)} />隐藏测试</label>
           <span>{groupedPushEvents.length} 条</span>
-          <button className="dangerButton" onClick={clearPushHistory}>清除推送历史</button>
+          <button className="dangerButton" onClick={clearPushHistory}>清除通知</button>
         </div>
       </div>
       <div className="historyList">
@@ -771,19 +774,18 @@ function App() {
     <section className="panel eventLogPanel">
       <div className="sectionHead">
         <div>
-          <h2>预警历史</h2>
+          <h2>触发的预警</h2>
         </div>
         <div className="historyActions">
           <label className="toggle"><input type="checkbox" checked={hideTestHistory} onChange={(event) => setHideTestHistory(event.target.checked)} />隐藏测试</label>
-          <span>{dedupedVisibleEvents.length} 条</span>
-          <button className="dangerButton" onClick={clearEventHistory}>清除预警历史</button>
+          <span>{alertVisibleEvents.length} 条</span>
+          <button className="dangerButton" onClick={clearEventHistory}>清除预警</button>
         </div>
       </div>
       <div className="eventLogList">
-        {dedupedVisibleEvents.slice(0, limit ?? dedupedVisibleEvents.length).map((item) => {
+        {alertVisibleEvents.slice(0, limit ?? alertVisibleEvents.length).map((item) => {
           const canonicalId = canonicalLogEventId(item.event_id);
           const itemDecision = decisionByEvent.get(item.event_id) ?? decisionByEvent.get(canonicalId);
-          const shouldPush = Boolean(itemDecision?.should_push);
           const decisionText = itemDecision
             ? `${Math.round(itemDecision.distance_km)}km · 烈度 ${itemDecision.intensity} · ${itemDecision.intensity_text}`
             : "未计算";
@@ -795,7 +797,7 @@ function App() {
               </div>
               <b>M{item.magnitude.toFixed(1)}</b>
               <small>{decisionText}</small>
-              <em className={shouldPush ? "pushed" : "notPushed"}>{shouldPush ? "已推送" : itemDecision?.reason || "未推送"}</em>
+              <em className="pushed">已触发</em>
             </a>
           );
         })}
@@ -807,7 +809,7 @@ function App() {
     <section className="panel eventLogPanel">
       <div className="sectionHead">
         <div>
-          <h2>实时地震记录</h2>
+          <h2>收到的地震</h2>
         </div>
         <div className="historyActions">
           <span>{visibleObservedEvents.length} 条</span>
@@ -828,7 +830,7 @@ function App() {
               </div>
               <b>M{item.magnitude.toFixed(1)}</b>
               <small>深度 {item.depth_km} km</small>
-              <em className={inWarningHistory ? "pushed" : "notPushed"}>{item.reason || (inWarningHistory ? "已进入预警历史" : "未触发预警")}</em>
+              <em className={inWarningHistory ? "pushed" : "notPushed"}>{item.reason || (inWarningHistory ? "已触发预警" : "未触发预警")}</em>
             </a>
           );
         })}
@@ -845,20 +847,20 @@ function App() {
       </div>
       <div className="historyNav">
         <a href="/catalog">
-          <span>实时地震记录</span>
+          <span>收到的地震</span>
           <b>{visibleObservedEvents.length} 条</b>
         </a>
         <a href="/history">
-          <span>预警历史</span>
-          <b>{dedupedVisibleEvents.length} 条</b>
+          <span>触发的预警</span>
+          <b>{alertVisibleEvents.length} 条</b>
         </a>
         <a href="/pushes">
-          <span>推送历史</span>
+          <span>发出的通知</span>
           <b>{groupedPushEvents.length} 条</b>
         </a>
         <a href="/rules">
-          <span>规则说明</span>
-          <b>入库 / 推送</b>
+          <span>怎么看记录</span>
+          <b>收到 / 触发 / 发出</b>
         </a>
         <a href="/settings">
           <span>推送设置</span>
@@ -880,32 +882,36 @@ function App() {
 
   const rulesPage = (
     <main className="appShell">
-      {historyPageHeader("规则说明", "")}
+      {historyPageHeader("怎么看记录", "一场地震会先被系统收到，只有符合你设备条件时才会触发预警；触发后如果设备配置了 Bark、ntfy 或 Webhook，才会产生通知发送结果。")}
+      <section className="panel flowPanel">
+        <div><b>1</b><span>收到的地震</span><small>实时源传来的事件</small></div>
+        <div><b>2</b><span>触发的预警</span><small>符合设备位置和阈值</small></div>
+        <div><b>3</b><span>发出的通知</span><small>Bark / ntfy / Webhook 结果</small></div>
+      </section>
       <section className="panel rulesPanel">
         <div className="rulesGrid">
           <div>
-            <h2>三类记录的关系</h2>
+            <h2>收到的地震</h2>
             <ul>
-              <li>实时地震记录：系统从已连接实时源收到的地震，小震和远震也会显示。</li>
-              <li>预警历史：从实时地震记录中筛选出进入本地判断链路的事件。</li>
-              <li>推送历史：预警历史里实际发送到 Apple 设备的通知结果。</li>
+              <li>只表示系统从实时源听到了这场地震。</li>
+              <li>这里可能包含很小、很远、不会提醒你的地震。</li>
+              <li>它是原始入口，不等于预警。</li>
             </ul>
           </div>
           <div>
-            <h2>什么会进入预警历史</h2>
+            <h2>触发的预警</h2>
             <ul>
-              <li>国内预警源收到的地震会进入预警历史，用于追踪报数、修正报和取消报。</li>
-              <li>全球 EMSC 的 M{status?.global_quake_min_magnitude ?? 7.5}+ 会进入预警历史，即使离你很远。</li>
-              <li>EMSC 非特大地震只有在对某台设备同时满足距离、震级和本地烈度时，才进入预警历史。</li>
+              <li>只有需要提醒你的地震才会出现在这里。</li>
+              <li>本地相关地震按每台设备的位置、震级、距离和烈度判断。</li>
+              <li>全球 M{status?.global_quake_min_magnitude ?? 7.5}+ 会进入这里；离你很远时只做温和提醒。</li>
             </ul>
           </div>
           <div>
-            <h2>什么时候会推送</h2>
+            <h2>发出的通知</h2>
             <ul>
-              <li>演练会推送给允许接收测试的设备。</li>
-              <li>远距离全球 M{status?.global_quake_min_magnitude ?? 7.5}+ 只做温和提醒，不显示本地倒计时。</li>
-              <li>国内预警源优先按设备阈值推送；如果预计烈度达到 2 以上，也会按“可能有感”兜底提醒。</li>
-              <li>取消报、停用设备和未达到规则的事件不会触发推送。</li>
+              <li>这里按一场地震合并显示通知发送结果。</li>
+              <li>同一场地震可能包含发现通知和到达通知。</li>
+              <li>如果没有配置推送设备，可能有预警但没有通知结果。</li>
             </ul>
           </div>
         </div>
@@ -1027,7 +1033,7 @@ function App() {
       <main className="appShell detailShell">
         <section className="panel loadingPanel">
           <h1>预警不存在或已清除</h1>
-          <p>这条通知对应的地震记录已经找不到。可以返回首页查看最近通知。</p>
+          <p>这条通知对应的预警已经找不到。可以返回首页。</p>
           <a className="alertBack" href="/">返回首页</a>
         </section>
       </main>
@@ -1060,8 +1066,8 @@ function App() {
     return (
       <main className="appShell">
         {historyPageHeader(
-          "预警历史",
-          `从实时地震记录中筛选出进入预警判断的事件，包括国内预警源事件、本地相关地震、全球 M${status?.global_quake_min_magnitude ?? 7.5}+ 和演练。`,
+          "触发的预警",
+          `这里显示真正需要提醒你的地震，包括演练、本地相关地震和全球 M${status?.global_quake_min_magnitude ?? 7.5}+。未触发的小震、远震只在“收到的地震”里。`,
         )}
         {renderEventLogSection()}
       </main>
@@ -1072,8 +1078,8 @@ function App() {
     return (
       <main className="appShell">
         {historyPageHeader(
-          "实时地震记录",
-          "系统从已连接实时源收到的地震都会先出现在这里。小震、远震可能不会触发预警，但能用来确认系统确实听到了这些事件。",
+          "收到的地震",
+          "系统从已连接实时源听到的事件会先出现在这里。这里不代表需要提醒，只表示系统收到了。",
         )}
         {renderCatalogSection()}
       </main>
@@ -1084,8 +1090,8 @@ function App() {
     return (
       <main className="appShell">
         {historyPageHeader(
-          "推送历史",
-          "测试通知和真实预警都在这里查看。",
+          "发出的通知",
+          "Bark、ntfy 或 Webhook 的发送结果在这里查看。同一场地震会合并成一条。",
         )}
         {renderPushHistorySection()}
       </main>
