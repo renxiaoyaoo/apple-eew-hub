@@ -53,6 +53,7 @@ type LatestAlert = {
     intensity: number;
     intensity_text: string;
     should_push: boolean;
+    reason?: string;
     created_at?: string;
   }>;
 };
@@ -198,6 +199,8 @@ const barkLevelOptions = [
   ["active", "普通提醒"],
   ["passive", "静默/低打扰"],
 ] as const;
+
+const defaultGlobalCatalogMagnitude = 4.5;
 
 const defaultSystemConfig: SystemConfig = {
   wolfx_enabled: true,
@@ -369,6 +372,38 @@ function repeatText(value: number) {
   return `${Math.max(1, Number(value) || 1)} 次`;
 }
 
+function decisionReasonLabel(reason?: string) {
+  const labels: Record<string, string> = {
+    "test drill": "演练模式",
+    "global major earthquake": "全球特大地震",
+    "global local threshold matched": "全球源地震达到本地条件",
+    "threshold matched": "达到设备阈值",
+    "felt intensity": "预计可能有感",
+    "below threshold": "未达到阈值",
+    "cancel report": "取消报",
+    "device disabled": "设备已停用",
+    "device disabled test alerts": "设备不接收测试",
+  };
+  return labels[reason || ""] ?? reason ?? "达到提醒条件";
+}
+
+function alertReasonText(event: LatestAlert["event"], decision: NonNullable<LatestAlert["decisions"]>[number], device?: Device, globalMin = 7.5) {
+  const deviceName = device?.name || decision.device_name || "这台 Apple 设备";
+  const city = device?.default_city ? `，位置为${device.default_city}` : "";
+  const metrics = `距震中约 ${Math.round(decision.distance_km)}km，预计烈度 ${decision.intensity.toFixed(1)}，震级 M${event?.magnitude.toFixed(1) ?? "未知"}`;
+  if (event?.test) return `因为这是演练，系统会按演练场景给 ${deviceName} 发送提醒。`;
+  if (decision.reason === "global major earthquake") {
+    return `因为这场地震达到全球特大地震阈值 M${globalMin}+。它会作为温和提醒发送，不按本地横波倒计时理解。`;
+  }
+  if (decision.reason === "felt intensity") {
+    return `因为 ${metrics}，系统判断可能有感，所以提醒 ${deviceName}${city}。`;
+  }
+  const threshold = device
+    ? `；这台设备的条件是 M${device.min_magnitude}+、${device.max_distance_km}km 内、烈度 ${device.min_intensity}+`
+    : "";
+  return `因为 ${metrics}${threshold}，所以触发 ${deviceName}${city} 的预警。`;
+}
+
 function canonicalLogEventId(eventId: string) {
   return eventId.replace(/^(\d{12}\.\d+)_\d+$/, "$1");
 }
@@ -421,6 +456,7 @@ function App() {
   const [alertStartedAt, setAlertStartedAt] = useState(Date.now());
   const [nowMs, setNowMs] = useState(Date.now());
   const [hideTestHistory, setHideTestHistory] = useState(false);
+  const [showAllReceived, setShowAllReceived] = useState(false);
   const [detailNotFound, setDetailNotFound] = useState(false);
   const [configDirty, setConfigDirty] = useState(false);
   const configDirtyRef = useRef(false);
@@ -532,6 +568,11 @@ function App() {
     const key = canonicalLogEventId(item.event_id);
     return items.findIndex((candidate) => canonicalLogEventId(candidate.event_id) === key) === index;
   });
+  const catalogVisibleEvents = showAllReceived
+    ? visibleObservedEvents
+    : visibleObservedEvents.filter((item) =>
+      item.source !== "emsc_global" || Boolean(item.recorded) || item.magnitude >= defaultGlobalCatalogMagnitude
+    );
   const dedupedVisibleEvents = visibleEvents.filter((item, index, items) => {
     const key = canonicalLogEventId(item.event_id);
     return items.findIndex((candidate) => canonicalLogEventId(candidate.event_id) === key) === index;
@@ -576,6 +617,7 @@ function App() {
   }, new Map<string, PushEventGroup>()).values()).sort((a, b) => (timeMs(b.latestAt) ?? 0) - (timeMs(a.latestAt) ?? 0));
   const displayCity = activeDevice?.default_city || "成都";
   const isFarGlobalBrief = event.source === "emsc_global" && decision.distance_km > (activeDevice?.max_distance_km ?? 500);
+  const alertExplanation = alertReasonText(event, decision, activeDevice, status?.global_quake_min_magnitude ?? 7.5);
   const isEventHistoryPage = routePath === "/history";
   const isCatalogPage = routePath === "/catalog";
   const isPushHistoryPage = routePath === "/pushes";
@@ -718,6 +760,7 @@ function App() {
         <div><span>预警来源</span><b>{sourceName(event.source || "unknown")}</b></div>
       </div>
       <div className="tips">勿慌乱、先躲避、后撤离、找空间、保护头、忌电梯。</div>
+      {detailEventId && <div className="reasonBox"><b>为什么提醒我</b><span>{alertExplanation}</span></div>}
     </section>
   );
 
@@ -812,11 +855,14 @@ function App() {
           <h2>收到的地震</h2>
         </div>
         <div className="historyActions">
-          <span>{visibleObservedEvents.length} 条</span>
+          <button className="compact" onClick={() => setShowAllReceived((value) => !value)}>
+            {showAllReceived ? "隐藏全球小震" : "显示全部"}
+          </button>
+          <span>{catalogVisibleEvents.length}/{visibleObservedEvents.length} 条</span>
         </div>
       </div>
       <div className="eventLogList">
-        {visibleObservedEvents.slice(0, limit ?? visibleObservedEvents.length).map((item) => {
+        {catalogVisibleEvents.slice(0, limit ?? catalogVisibleEvents.length).map((item) => {
           const inWarningHistory = Boolean(item.recorded);
           return (
             <a
@@ -829,7 +875,7 @@ function App() {
                 <small>{sourceName(item.source)} · {formatEventTime(item.origin_time)}</small>
               </div>
               <b>M{item.magnitude.toFixed(1)}</b>
-              <small>深度 {item.depth_km} km</small>
+              <small>{item.source === "emsc_global" && item.magnitude < defaultGlobalCatalogMagnitude && !inWarningHistory ? "全球小震" : `深度 ${item.depth_km} km`}</small>
               <em className={inWarningHistory ? "pushed" : "notPushed"}>{item.reason || (inWarningHistory ? "已触发预警" : "未触发预警")}</em>
             </a>
           );
@@ -848,7 +894,7 @@ function App() {
       <div className="historyNav">
         <a href="/catalog">
           <span>收到的地震</span>
-          <b>{visibleObservedEvents.length} 条</b>
+          <b>{catalogVisibleEvents.length}/{visibleObservedEvents.length} 条</b>
         </a>
         <a href="/history">
           <span>触发的预警</span>
@@ -1079,7 +1125,7 @@ function App() {
       <main className="appShell">
         {historyPageHeader(
           "收到的地震",
-          "系统从已连接实时源听到的事件会先出现在这里。这里不代表需要提醒，只表示系统收到了。",
+          `系统从已连接实时源听到的事件会先出现在这里。默认隐藏 EMSC 全球 M${defaultGlobalCatalogMagnitude} 以下且未触发预警的小震。`,
         )}
         {renderCatalogSection()}
       </main>

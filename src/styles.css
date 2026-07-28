@@ -624,7 +624,8 @@ details[open] summary {
 
 .bigMetrics div,
 .epicenterLine,
-.tips {
+.tips,
+.reasonBox {
   border-radius: 8px;
   background: rgba(255, 255, 255, .86);
   padding: 16px;
@@ -632,8 +633,10 @@ details[open] summary {
 
 .alertCard.red .bigMetrics div,
 .alertCard.red .tips,
+.alertCard.red .reasonBox,
 .alertCard.blue .bigMetrics div,
-.alertCard.blue .tips {
+.alertCard.blue .tips,
+.alertCard.blue .reasonBox {
   background: rgba(0, 0, 0, .28);
   color: #fff;
 }
@@ -681,6 +684,21 @@ details[open] summary {
   font-weight: 880;
   font-size: clamp(16px, 1.8vw, 22px);
   line-height: 1.5;
+}
+
+.reasonBox {
+  display: grid;
+  gap: 5px;
+}
+
+.reasonBox b {
+  font-size: 15px;
+}
+
+.reasonBox span {
+  line-height: 1.45;
+  font-size: 14px;
+  font-weight: 720;
 }
 
 .detailShell {
