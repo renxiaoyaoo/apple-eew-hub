@@ -916,6 +916,26 @@ function App() {
     </section>
   );
 
+  const homeFlow = (
+    <section className="panel flowPanel homeFlowPanel">
+      <a href="/catalog">
+        <b>1</b>
+        <span>收到的地震</span>
+        <small>{catalogVisibleEvents.length}/{visibleObservedEvents.length} 条，默认隐藏全球小震</small>
+      </a>
+      <a href="/history">
+        <b>2</b>
+        <span>触发的预警</span>
+        <small>{alertVisibleEvents.length} 场，符合设备位置和阈值</small>
+      </a>
+      <a href="/pushes">
+        <b>3</b>
+        <span>发出的通知</span>
+        <small>{groupedPushEvents.length} 场，Bark / ntfy / Webhook 结果</small>
+      </a>
+    </section>
+  );
+
   const historyPageHeader = (title: string, description: string) => (
     <section className="pageHeader panel">
       <a className="textButton" href="/">返回首页</a>
@@ -1167,6 +1187,8 @@ function App() {
           </div>
         </div>
       </section>
+
+      {homeFlow}
 
       <section className="quick panel">
         <h2>快速开始</h2>

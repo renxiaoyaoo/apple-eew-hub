@@ -935,7 +935,8 @@ details[open] summary {
   gap: 10px;
 }
 
-.flowPanel > div {
+.flowPanel > div,
+.flowPanel > a {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   gap: 3px 10px;
@@ -944,6 +945,8 @@ details[open] summary {
   border-radius: 8px;
   background: #fffaf4;
   padding: 12px;
+  color: #2f2a24;
+  text-decoration: none;
 }
 
 .flowPanel b {
@@ -964,6 +967,10 @@ details[open] summary {
 
 .flowPanel small {
   color: #75685d;
+}
+
+.homeFlowPanel {
+  margin-top: -4px;
 }
 
 .rulesGrid > div,
