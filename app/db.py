@@ -90,6 +90,11 @@ CREATE TABLE IF NOT EXISTS observed_events (
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
+CREATE INDEX IF NOT EXISTS idx_events_updated_at ON events(updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_decisions_event_id ON decisions(event_id);
+CREATE INDEX IF NOT EXISTS idx_pushes_event_device_phase ON pushes(event_id, device_id, push_phase);
+CREATE INDEX IF NOT EXISTS idx_pushes_id ON pushes(id DESC);
+CREATE INDEX IF NOT EXISTS idx_observed_events_updated_at ON observed_events(updated_at DESC);
 """
 
 
