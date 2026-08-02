@@ -626,9 +626,9 @@ details[open] summary {
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(90deg, rgba(255, 255, 255, .14) 0 1px, transparent 1px 18px),
-    linear-gradient(0deg, rgba(255, 255, 255, .12) 0 1px, transparent 1px 18px);
-  opacity: .26;
+    linear-gradient(90deg, rgba(255, 255, 255, .08) 0 1px, transparent 1px 22px),
+    linear-gradient(0deg, rgba(255, 255, 255, .07) 0 1px, transparent 1px 22px);
+  opacity: .18;
   pointer-events: none;
 }
 
@@ -651,21 +651,21 @@ details[open] summary {
 .alertCard.red {
   --alert-color: #7f0019;
   background:
-    repeating-linear-gradient(-45deg, rgba(127, 0, 25, .08) 0 10px, transparent 10px 22px),
+    repeating-linear-gradient(-45deg, rgba(127, 0, 25, .035) 0 10px, transparent 10px 28px),
     #fff7f4;
 }
 
 .alertCard.yellow {
   --alert-color: #8a4f00;
   background:
-    repeating-linear-gradient(-45deg, rgba(168, 95, 0, .1) 0 10px, transparent 10px 22px),
+    repeating-linear-gradient(-45deg, rgba(168, 95, 0, .045) 0 10px, transparent 10px 28px),
     #fff8dc;
 }
 
 .alertCard.blue {
   --alert-color: #004e92;
   background:
-    repeating-linear-gradient(-45deg, rgba(0, 78, 146, .08) 0 10px, transparent 10px 22px),
+    repeating-linear-gradient(-45deg, rgba(0, 78, 146, .04) 0 10px, transparent 10px 28px),
     #eef6ff;
 }
 
@@ -771,6 +771,7 @@ details[open] summary {
 .reasonBox {
   display: grid;
   gap: 5px;
+  margin-bottom: 18px;
 }
 
 .reasonBox b {
@@ -839,6 +840,46 @@ details[open] summary {
   padding: 8px 11px;
   font-size: 13px;
   font-weight: 850;
+}
+
+.imageSheet {
+  display: grid;
+  gap: 14px;
+  width: min(560px, 100%);
+  margin: 0 0 16px;
+  border: 1px solid #dfd2c3;
+  border-radius: 8px;
+  background: #fffaf4;
+  padding: 16px;
+}
+
+.imageSheet h2 {
+  margin: 0 0 4px;
+  font-size: 20px;
+}
+
+.imageSheet p {
+  margin: 0;
+  color: #75685d;
+}
+
+.imageSheet img {
+  width: min(360px, 100%);
+  border: 1px solid #dfd2c3;
+  background: #fff;
+}
+
+.secondaryLink {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #dfd2c3;
+  border-radius: 8px;
+  background: #f7efe6;
+  color: #5b3a2e;
+  padding: 10px 14px;
+  text-decoration: none;
+  font-weight: 780;
 }
 
 .mapPanel {

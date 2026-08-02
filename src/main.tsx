@@ -461,6 +461,9 @@ function App() {
   const [showAllReceived, setShowAllReceived] = useState(false);
   const [detailNotFound, setDetailNotFound] = useState(false);
   const [configDirty, setConfigDirty] = useState(false);
+  const [cardImageUrl, setCardImageUrl] = useState("");
+  const [cardImageName, setCardImageName] = useState("");
+  const [cardImageBlob, setCardImageBlob] = useState<Blob | null>(null);
   const configDirtyRef = useRef(false);
   const alertCardRef = useRef<HTMLElement | null>(null);
   const [systemConfig, setSystemConfig] = useState<SystemConfig>(defaultSystemConfig);
@@ -689,10 +692,16 @@ function App() {
     await refresh();
   }
 
-  async function saveAlertCardImage() {
+  useEffect(() => {
+    return () => {
+      if (cardImageUrl) URL.revokeObjectURL(cardImageUrl);
+    };
+  }, [cardImageUrl]);
+
+  async function renderAlertCardBlob() {
     if (!alertCardRef.current) return;
+    const hidden = Array.from(alertCardRef.current.querySelectorAll<HTMLElement>(".captureExclude"));
     try {
-      const hidden = Array.from(alertCardRef.current.querySelectorAll<HTMLElement>(".captureExclude"));
       hidden.forEach((node) => { node.style.visibility = "hidden"; });
       const { default: html2canvas } = await import("html2canvas");
       const canvas = await html2canvas(alertCardRef.current, {
@@ -700,28 +709,48 @@ function App() {
         scale: Math.min(window.devicePixelRatio || 2, 3),
         useCORS: true,
       });
-      hidden.forEach((node) => { node.style.visibility = ""; });
-      const filename = `earthquake-alert-${event.event_id || Date.now()}.png`;
       const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
       if (!blob) throw new Error("图片生成失败");
-      const file = new File([blob], filename, { type: "image/png" });
-      const shareData = { files: [file], title: "地震预警卡片", text: `${event.epicenter} M${event.magnitude.toFixed(1)}` };
-      if (navigator.canShare?.(shareData)) {
-        await navigator.share(shareData);
-        setMessage("预警卡片已生成。");
-        return;
-      }
+      return blob;
+    } finally {
+      hidden.forEach((node) => { node.style.visibility = ""; });
+    }
+  }
+
+  async function saveAlertCardImage() {
+    try {
+      const blob = await renderAlertCardBlob();
+      if (!blob) return;
+      const filename = `earthquake-alert-${event.event_id || Date.now()}.png`;
       const url = URL.createObjectURL(blob);
+      setCardImageUrl((previous) => {
+        if (previous) URL.revokeObjectURL(previous);
+        return url;
+      });
+      setCardImageName(filename);
+      setCardImageBlob(blob);
       const link = document.createElement("a");
       link.download = filename;
       link.href = url;
+      document.body.appendChild(link);
       link.click();
-      URL.revokeObjectURL(url);
-      setMessage("预警卡片已保存为图片。");
+      link.remove();
+      setMessage("预警卡片已生成。若浏览器没有自动下载，可在预览里打开原图或长按保存。");
     } catch (error) {
-      alertCardRef.current.querySelectorAll<HTMLElement>(".captureExclude").forEach((node) => { node.style.visibility = ""; });
       setMessage(`保存图片失败：${error instanceof Error ? error.message : "未知错误"}`);
     }
+  }
+
+  async function shareAlertCardImage() {
+    if (!cardImageBlob) return;
+    const filename = cardImageName || `earthquake-alert-${Date.now()}.png`;
+    const file = new File([cardImageBlob], filename, { type: "image/png" });
+    const shareData = { files: [file], title: "地震预警卡片", text: `${event.epicenter} M${event.magnitude.toFixed(1)}` };
+    if (!navigator.canShare?.(shareData)) {
+      setMessage("当前浏览器不支持直接分享图片，可打开原图后保存。");
+      return;
+    }
+    await navigator.share(shareData);
   }
 
   async function testPush() {
@@ -1163,6 +1192,22 @@ function App() {
           {alertCard}
           {mapSection}
         </section>
+        {message && <p className="message">{message}</p>}
+        {cardImageUrl && (
+          <section className="imageSheet">
+            <div>
+              <h2>预警卡片图片已生成</h2>
+              <p>如果没有自动下载，打开原图或长按下面的图片保存。</p>
+            </div>
+            <img src={cardImageUrl} alt="地震预警卡片图片" />
+            <div className="buttonRow">
+              <a className="secondaryLink" href={cardImageUrl} download={cardImageName}>下载图片</a>
+              <a className="secondaryLink" href={cardImageUrl} target="_blank" rel="noreferrer">打开原图</a>
+              <button className="secondary" onClick={shareAlertCardImage}>分享</button>
+              <button className="ghost" onClick={() => setCardImageUrl("")}>关闭</button>
+            </div>
+          </section>
+        )}
       </main>
     );
   }
