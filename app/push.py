@@ -48,13 +48,14 @@ def bark_repeat(intensity: float) -> tuple[int, float]:
 
 def bark_title(event: EarthquakeEvent, intensity: float, arrival_seconds: int) -> str:
     tier = bark_tier(intensity)
+    prefix = "演练：" if event.test and event.source != "test" else ""
     if event.source == "emsc_global" and intensity <= 1:
-        return f"全球特大地震提醒：M{event.magnitude:.1f}"
+        return f"{prefix}全球特大地震提醒：M{event.magnitude:.1f}"
     if tier == "red":
-        return f"强震预警：{arrival_seconds}秒后到达" if arrival_seconds > 0 else "强震预警：横波已到达"
+        return f"{prefix}强震预警：{arrival_seconds}秒后到达" if arrival_seconds > 0 else f"{prefix}强震预警：横波已到达"
     if tier == "yellow":
-        return f"地震预警：{arrival_seconds}秒后到达" if arrival_seconds > 0 else "地震预警：横波已到达"
-    return f"地震提醒：{arrival_seconds}秒后到达" if arrival_seconds > 0 else "地震提醒：横波已到达"
+        return f"{prefix}地震预警：{arrival_seconds}秒后到达" if arrival_seconds > 0 else f"{prefix}地震预警：横波已到达"
+    return f"{prefix}地震提醒：{arrival_seconds}秒后到达" if arrival_seconds > 0 else f"{prefix}地震提醒：横波已到达"
 
 
 def arrival_text(arrival_seconds: int) -> str:
@@ -78,6 +79,8 @@ def bark_payload(
             f"{event.epicenter} M{event.magnitude:.1f}，距你{distance_km:.0f}km，"
             f"{arrival_text(arrival_seconds)}，预计烈度{intensity:g}：{text}。勿乘电梯，保护头部。"
         )
+    if event.test and event.source != "test":
+        body = f"【演练】{body}"
     query = {
         **bark_level(intensity),
         "group": "earthquake",
@@ -138,11 +141,14 @@ async def send_bark(
 
 
 def push_text(event: EarthquakeEvent, decision: Decision) -> tuple[str, str]:
-    title = f"地震预警：{decision.arrival_seconds}秒后到达" if decision.arrival_seconds > 0 else "地震预警：横波已到达"
+    prefix = "演练：" if event.test and event.source != "test" else ""
+    title = f"{prefix}地震预警：{decision.arrival_seconds}秒后到达" if decision.arrival_seconds > 0 else f"{prefix}地震预警：横波已到达"
     body = (
         f"{event.epicenter} M{event.magnitude:.1f}，距你{decision.distance_km:.0f}km，"
         f"{arrival_text(decision.arrival_seconds)}，预计烈度{decision.intensity:g}：{decision.intensity_text}。勿乘电梯，保护头部。"
     )
+    if event.test and event.source != "test":
+        body = f"【演练】{body}"
     return title, body
 
 

@@ -53,3 +53,11 @@ def test_bark_payload_links_to_device_specific_detail(monkeypatch):
     _, query = bark_payload(event(event_id="evt/1"), 80, 3, "明显有感", 12, device_id=7)
 
     assert query["url"] == "https://h-eew.example/event/evt%2F1?device_id=7"
+
+
+def test_drill_bark_payload_is_marked():
+    path, _ = bark_payload(event(source="drill", test=True), 80, 3, "明显有感", 12)
+    decoded = unquote(path)
+
+    assert decoded.startswith("演练：")
+    assert "【演练】" in decoded

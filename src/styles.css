@@ -264,7 +264,20 @@ details[open] summary {
 }
 
 .quick li {
-  padding: 0;
+  display: grid;
+  gap: 5px;
+  border: 1px solid #dfd2c3;
+  border-radius: 8px;
+  background: #fffaf4;
+  padding: 12px;
+}
+
+.quick li b {
+  color: #2f2a24;
+}
+
+.quick li span {
+  color: #75685d;
 }
 
 .sectionHead,
@@ -570,6 +583,7 @@ details[open] summary {
 }
 
 .alertCard {
+  position: relative;
   display: grid;
   gap: 12px;
   min-height: min(680px, calc(100vh - 48px));
@@ -578,6 +592,31 @@ details[open] summary {
   overflow: hidden;
   color: #111827;
   border-radius: 0;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .22);
+}
+
+.alertCard::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    repeating-linear-gradient(-45deg, rgba(255, 255, 255, .13) 0 10px, transparent 10px 24px);
+  opacity: .32;
+  pointer-events: none;
+}
+
+.alertCard::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, rgba(0, 0, 0, .14), transparent 28%, rgba(0, 0, 0, .18));
+  pointer-events: none;
+}
+
+.alertCard > * {
+  position: relative;
+  z-index: 1;
 }
 
 .alertCard.red {
@@ -614,6 +653,7 @@ details[open] summary {
   font-size: clamp(88px, 17vw, 170px);
   line-height: .9;
   letter-spacing: 0;
+  text-shadow: 0 5px 20px rgba(0, 0, 0, .24);
 }
 
 .bigMetrics {
@@ -629,6 +669,8 @@ details[open] summary {
   border-radius: 8px;
   background: rgba(255, 255, 255, .86);
   padding: 16px;
+  box-shadow: 0 12px 32px rgba(31, 41, 55, .14);
+  backdrop-filter: blur(4px);
 }
 
 .alertCard.red .bigMetrics div,

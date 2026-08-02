@@ -892,15 +892,6 @@ function App() {
         </div>
       </div>
       <div className="historyNav">
-        <a href="/catalog">
-          <span>收到的地震</span>
-        </a>
-        <a href="/history">
-          <span>触发的预警</span>
-        </a>
-        <a href="/pushes">
-          <span>发出的通知</span>
-        </a>
         <a href="/rules">
           <span>怎么看记录</span>
           <b>收到 / 触发 / 发出</b>
@@ -1188,13 +1179,12 @@ function App() {
       {homeFlow}
 
       <section className="quick panel">
-        <h2>快速开始</h2>
+        <h2>使用流程</h2>
         <ol>
-          <li>Bark App 服务器填你的 Bark Server 地址，例如 <b>https://bark.example.com</b>。</li>
-          <li>复制 Bark 推送地址或 Key，保存 Apple 设备。</li>
-          <li>不用 Bark 也可以改用 ntfy 或 Webhook。</li>
-          <li>点“测试通知”确认 iPhone 能响。</li>
-          <li>选择历史地震场景，点“开始演练”。</li>
+          <li><b>1. 添加设备</b><span>Bark App 填你的 Bark Server，复制推送地址或 Key 后保存。</span></li>
+          <li><b>2. 测试通知</b><span>先确认 iPhone 能响；不用 Bark 也可以改用 ntfy 或 Webhook。</span></li>
+          <li><b>3. 演练一次</b><span>选择历史地震场景，点“开始演练”，检查推送、卡片和地图。</span></li>
+          <li><b>4. 日常查看</b><span>首页看监听状态和三步流水线；少用的设置放在功能菜单。</span></li>
         </ol>
       </section>
 
