@@ -261,35 +261,36 @@ details[open] summary {
 
 .quick {
   display: grid;
-  grid-template-columns: 120px minmax(0, 1fr);
-  align-items: start;
-  gap: 12px;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 16px;
+  padding: 13px 16px;
   background:
     linear-gradient(135deg, rgba(255, 252, 247, .94), rgba(241, 231, 220, .94));
 }
 
 .quick h2 {
   margin: 0;
+  font-size: 19px;
 }
 
 .quick ol {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
   margin: 0;
   padding: 0;
   list-style: none;
   color: #5f534b;
-  line-height: 1.55;
+  line-height: 1.35;
 }
 
 .quick li {
   display: grid;
-  gap: 5px;
-  border: 1px solid #dfd2c3;
-  border-radius: 8px;
-  background: #fffaf4;
-  padding: 12px;
+  gap: 3px;
+  border-left: 3px solid #7f0019;
+  background: rgba(255, 255, 255, .58);
+  padding: 8px 10px;
 }
 
 .quick li b {
@@ -298,6 +299,7 @@ details[open] summary {
 
 .quick li span {
   color: #75685d;
+  font-size: 12px;
 }
 
 .sectionHead,
@@ -603,16 +605,20 @@ details[open] summary {
 }
 
 .alertCard {
+  --alert-color: #7f0019;
   position: relative;
   display: grid;
-  gap: 12px;
+  gap: 10px;
   min-height: min(680px, calc(100vh - 48px));
   margin-bottom: 16px;
-  padding: clamp(18px, 3vw, 32px);
+  padding: clamp(16px, 2.6vw, 28px);
   overflow: hidden;
-  color: #111827;
+  color: var(--alert-color);
   border-radius: 0;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .22);
+  border: 6px solid var(--alert-color);
+  box-shadow:
+    0 22px 60px rgba(24, 20, 17, .2),
+    inset 0 0 0 2px rgba(255, 255, 255, .62);
 }
 
 .alertCard::before {
@@ -620,17 +626,20 @@ details[open] summary {
   position: absolute;
   inset: 0;
   background:
-    repeating-linear-gradient(-45deg, rgba(255, 255, 255, .13) 0 10px, transparent 10px 24px);
-  opacity: .32;
+    linear-gradient(90deg, rgba(255, 255, 255, .14) 0 1px, transparent 1px 18px),
+    linear-gradient(0deg, rgba(255, 255, 255, .12) 0 1px, transparent 1px 18px);
+  opacity: .26;
   pointer-events: none;
 }
 
 .alertCard::after {
   content: "";
   position: absolute;
-  inset: 0;
+  inset: auto 0 0;
+  height: 18px;
   background:
-    linear-gradient(180deg, rgba(0, 0, 0, .14), transparent 28%, rgba(0, 0, 0, .18));
+    repeating-linear-gradient(90deg, var(--alert-color) 0 28px, transparent 28px 42px);
+  opacity: .9;
   pointer-events: none;
 }
 
@@ -640,40 +649,47 @@ details[open] summary {
 }
 
 .alertCard.red {
-  border-color: #7f1d1d;
+  --alert-color: #7f0019;
   background:
-    radial-gradient(circle at 82% 12%, rgba(255, 255, 255, .32), transparent 26%),
-    linear-gradient(135deg, #7f1d1d 0%, #dc2626 48%, #ff3b30 100%);
-  color: #fff;
+    repeating-linear-gradient(-45deg, rgba(127, 0, 25, .08) 0 10px, transparent 10px 22px),
+    #fff7f4;
 }
 
 .alertCard.yellow {
-  border-color: #92400e;
+  --alert-color: #8a4f00;
   background:
-    radial-gradient(circle at 82% 12%, rgba(255, 255, 255, .38), transparent 28%),
-    linear-gradient(135deg, #92400e 0%, #f59e0b 52%, #ffcc00 100%);
-  color: #111827;
+    repeating-linear-gradient(-45deg, rgba(168, 95, 0, .1) 0 10px, transparent 10px 22px),
+    #fff8dc;
 }
 
 .alertCard.blue {
-  border-color: #1e3a8a;
+  --alert-color: #004e92;
   background:
-    radial-gradient(circle at 82% 12%, rgba(255, 255, 255, .3), transparent 28%),
-    linear-gradient(135deg, #1e3a8a 0%, #2563eb 54%, #0ea5e9 100%);
-  color: #fff;
+    repeating-linear-gradient(-45deg, rgba(0, 78, 146, .08) 0 10px, transparent 10px 22px),
+    #eef6ff;
 }
 
 .alertCard h2 {
-  margin: 2px 0 0;
-  font-size: clamp(30px, 4.6vw, 58px);
+  margin: 0;
+  padding: 10px 12px;
+  background: var(--alert-color);
+  color: #fff;
+  font-size: clamp(26px, 3.35vw, 42px);
+  line-height: 1.05;
 }
 
 .alertCard > strong {
   display: block;
-  font-size: clamp(88px, 17vw, 170px);
-  line-height: .9;
+  width: fit-content;
+  margin: 2px 0;
+  padding: 6px 16px 8px;
+  background: #191714;
+  color: #fff;
+  font-size: clamp(92px, 17vw, 172px);
+  line-height: .86;
   letter-spacing: 0;
-  text-shadow: 0 5px 20px rgba(0, 0, 0, .24);
+  font-variant-numeric: tabular-nums;
+  box-shadow: 10px 10px 0 rgba(25, 23, 20, .16);
 }
 
 .bigMetrics {
@@ -686,11 +702,11 @@ details[open] summary {
 .epicenterLine,
 .tips,
 .reasonBox {
-  border-radius: 8px;
-  background: rgba(255, 255, 255, .86);
-  padding: 16px;
-  box-shadow: 0 12px 32px rgba(31, 41, 55, .14);
-  backdrop-filter: blur(4px);
+  border-radius: 2px;
+  border: 2px solid currentColor;
+  background: rgba(255, 255, 255, .78);
+  padding: 12px 14px;
+  box-shadow: 6px 6px 0 rgba(25, 23, 20, .08);
 }
 
 .alertCard.red .bigMetrics div,
@@ -699,8 +715,8 @@ details[open] summary {
 .alertCard.blue .bigMetrics div,
 .alertCard.blue .tips,
 .alertCard.blue .reasonBox {
-  background: rgba(0, 0, 0, .28);
-  color: #fff;
+  background: rgba(255, 255, 255, .78);
+  color: currentColor;
 }
 
 .bigMetrics div {
@@ -721,7 +737,8 @@ details[open] summary {
 
 .bigMetrics b {
   min-width: 0;
-  font-size: clamp(22px, 2.4vw, 36px);
+  color: #191714;
+  font-size: clamp(20px, 2.2vw, 32px);
   text-align: right;
   overflow-wrap: anywhere;
 }
@@ -743,6 +760,9 @@ details[open] summary {
 }
 
 .tips {
+  border-color: var(--alert-color);
+  background: var(--alert-color);
+  color: #fff;
   font-weight: 880;
   font-size: clamp(16px, 1.8vw, 22px);
   line-height: 1.5;
@@ -796,9 +816,10 @@ details[open] summary {
 }
 
 .alertBack {
-  border-radius: 8px;
-  background: rgba(0, 0, 0, .32);
-  color: #fff;
+  border-radius: 2px;
+  border: 2px solid var(--alert-color);
+  background: rgba(255, 255, 255, .78);
+  color: inherit;
   padding: 8px 11px;
   text-decoration: none;
   font-size: 13px;
@@ -811,9 +832,10 @@ details[open] summary {
 }
 
 .alertAction {
-  border-radius: 8px;
-  background: rgba(0, 0, 0, .32);
-  color: #fff;
+  border-radius: 2px;
+  border: 2px solid var(--alert-color);
+  background: rgba(255, 255, 255, .78);
+  color: inherit;
   padding: 8px 11px;
   font-size: 13px;
   font-weight: 850;

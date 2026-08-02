@@ -2,7 +2,6 @@ import React, { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { Circle, MapContainer, Marker, Polyline, Popup, TileLayer, useMap } from "react-leaflet";
 import L from "leaflet";
-import { toPng } from "html-to-image";
 import "leaflet/dist/leaflet.css";
 import "./styles.css";
 
@@ -692,15 +691,37 @@ function App() {
 
   async function saveAlertCardImage() {
     if (!alertCardRef.current) return;
-    const dataUrl = await toPng(alertCardRef.current, {
-      cacheBust: true,
-      pixelRatio: 2,
-      filter: (node) => !(node instanceof HTMLElement && node.classList.contains("captureExclude")),
-    });
-    const link = document.createElement("a");
-    link.download = `earthquake-alert-${event.event_id || Date.now()}.png`;
-    link.href = dataUrl;
-    link.click();
+    try {
+      const hidden = Array.from(alertCardRef.current.querySelectorAll<HTMLElement>(".captureExclude"));
+      hidden.forEach((node) => { node.style.visibility = "hidden"; });
+      const { default: html2canvas } = await import("html2canvas");
+      const canvas = await html2canvas(alertCardRef.current, {
+        backgroundColor: null,
+        scale: Math.min(window.devicePixelRatio || 2, 3),
+        useCORS: true,
+      });
+      hidden.forEach((node) => { node.style.visibility = ""; });
+      const filename = `earthquake-alert-${event.event_id || Date.now()}.png`;
+      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
+      if (!blob) throw new Error("图片生成失败");
+      const file = new File([blob], filename, { type: "image/png" });
+      const shareData = { files: [file], title: "地震预警卡片", text: `${event.epicenter} M${event.magnitude.toFixed(1)}` };
+      if (navigator.canShare?.(shareData)) {
+        await navigator.share(shareData);
+        setMessage("预警卡片已生成。");
+        return;
+      }
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.download = filename;
+      link.href = url;
+      link.click();
+      URL.revokeObjectURL(url);
+      setMessage("预警卡片已保存为图片。");
+    } catch (error) {
+      alertCardRef.current.querySelectorAll<HTMLElement>(".captureExclude").forEach((node) => { node.style.visibility = ""; });
+      setMessage(`保存图片失败：${error instanceof Error ? error.message : "未知错误"}`);
+    }
   }
 
   async function testPush() {
@@ -1198,27 +1219,10 @@ function App() {
       <section className="quick panel">
         <h2>快速开始</h2>
         <ol>
-          <li><b>1. 保存设备</b><span>选 Bark、ntfy 或 Webhook，填地址后保存。</span></li>
-          <li><b>2. 测试通知</b><span>确认 Apple 设备能收到提醒。</span></li>
-          <li><b>3. 开始演练</b><span>用历史地震跑完整链路。</span></li>
-          <li><b>4. 日常查看</b><span>看监听状态、预警和通知结果。</span></li>
+          <li><b>1. 保存设备</b><span>填 Bark Key、ntfy Topic 或 Webhook。</span></li>
+          <li><b>2. 测试通知</b><span>确认 Apple 设备能响。</span></li>
+          <li><b>3. 演练一次</b><span>检查推送、卡片和地图。</span></li>
         </ol>
-      </section>
-
-      <section className="monitorBlock">
-        <div className="statusCard">
-          <div className="statusMain">
-            <span className={status?.listener.connected ? "dot on" : "dot"} />
-            <strong>{status?.listener.connected ? "实时监听中" : "监听未就绪"}</strong>
-            <small>{connectedSources}/{sourceStates.length || status?.sources.length || 3} 个源在线</small>
-          </div>
-          <div className="sources compactSources">
-            {sourceStates.length ? sourceStates.map(([name, state]) => (
-              <div key={name} className={state.connected ? "sourceOnline" : state.message === "connecting" ? "sourcePending" : "sourceOffline"}><span>{sourceLabel(name)}</span><strong>{state.connected ? "已连接" : state.message === "connecting" ? "连接中" : "离线"}</strong></div>
-            )) : <div><span>Wolfx</span><strong>等待中</strong></div>}
-          </div>
-        </div>
-        {homeFlow}
       </section>
 
       <section className="panel devicePanel">
@@ -1303,6 +1307,22 @@ function App() {
       </section>
 
       {historyLinks}
+
+      <section className="monitorBlock">
+        <div className="statusCard">
+          <div className="statusMain">
+            <span className={status?.listener.connected ? "dot on" : "dot"} />
+            <strong>{status?.listener.connected ? "实时监听中" : "监听未就绪"}</strong>
+            <small>{connectedSources}/{sourceStates.length || status?.sources.length || 3} 个源在线</small>
+          </div>
+          <div className="sources compactSources">
+            {sourceStates.length ? sourceStates.map(([name, state]) => (
+              <div key={name} className={state.connected ? "sourceOnline" : state.message === "connecting" ? "sourcePending" : "sourceOffline"}><span>{sourceLabel(name)}</span><strong>{state.connected ? "已连接" : state.message === "connecting" ? "连接中" : "离线"}</strong></div>
+            )) : <div><span>Wolfx</span><strong>等待中</strong></div>}
+          </div>
+        </div>
+        {homeFlow}
+      </section>
     </main>
   );
 }
