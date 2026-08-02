@@ -8,12 +8,12 @@
   },
   "dependencies": {
     "@vitejs/plugin-react": "^4.3.4",
-    "vite": "^6.0.7",
-    "typescript": "^5.7.2",
+    "html-to-image": "^1.11.13",
+    "leaflet": "^1.9.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "leaflet": "^1.9.4",
-    "react-leaflet": "^5.0.0"
-  },
-  "devDependencies": {}
+    "react-leaflet": "^5.0.0",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.7"
+  }
 }

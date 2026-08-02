@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { Circle, MapContainer, Marker, Polyline, Popup, TileLayer, useMap } from "react-leaflet";
 import L from "leaflet";
+import { toPng } from "html-to-image";
 import "leaflet/dist/leaflet.css";
 import "./styles.css";
 
@@ -25,6 +26,7 @@ type Status = {
 type Device = {
   id: number;
   name: string;
+  push_type: "bark" | "ntfy" | "webhook";
   default_city: string;
   latitude: number;
   longitude: number;
@@ -201,6 +203,7 @@ const barkLevelOptions = [
 ] as const;
 
 const defaultGlobalCatalogMagnitude = 4.5;
+const repoUrl = "https://github.com/renxiaoyaoo/apple-eew-hub";
 
 const defaultSystemConfig: SystemConfig = {
   wolfx_enabled: true,
@@ -460,10 +463,13 @@ function App() {
   const [detailNotFound, setDetailNotFound] = useState(false);
   const [configDirty, setConfigDirty] = useState(false);
   const configDirtyRef = useRef(false);
+  const alertCardRef = useRef<HTMLElement | null>(null);
   const [systemConfig, setSystemConfig] = useState<SystemConfig>(defaultSystemConfig);
   const [form, setForm] = useState({
     name: "",
+    push_type: "bark",
     bark_key: "",
+    push_url: "",
     default_city: "成都",
     latitude: "",
     longitude: "",
@@ -513,7 +519,9 @@ function App() {
     setEditingId(device.id);
     setForm({
       name: device.name,
+      push_type: device.push_type || "bark",
       bark_key: "",
+      push_url: "",
       default_city: device.default_city || "成都",
       latitude: String(device.latitude || ""),
       longitude: String(device.longitude || ""),
@@ -648,10 +656,10 @@ function App() {
     event.preventDefault();
     const location = coordsFor(form.default_city, form.latitude, form.longitude);
     const key = parseBarkKey(form.bark_key);
+    const pushType = form.push_type as "bark" | "ntfy" | "webhook";
     const payload: Record<string, unknown> = {
       name: form.name.trim() || "你的 Apple 设备",
-      push_type: "bark",
-      push_url: "",
+      push_type: pushType,
       default_city: form.default_city || "成都",
       latitude: location.lat,
       longitude: location.lng,
@@ -663,7 +671,13 @@ function App() {
       payload.enabled = true;
       payload.receive_tests = true;
     }
-    if (key || !editingId) payload.bark_key = key;
+    if (pushType === "bark") {
+      payload.push_url = "";
+      if (key || !editingId) payload.bark_key = key;
+    } else {
+      payload.bark_key = "";
+      if (form.push_url.trim() || !editingId) payload.push_url = form.push_url.trim();
+    }
 
     if (editingId) {
       await api(`/api/devices/${editingId}`, { method: "PATCH", body: JSON.stringify(payload) });
@@ -674,6 +688,19 @@ function App() {
     }
     setEditingId(null);
     await refresh();
+  }
+
+  async function saveAlertCardImage() {
+    if (!alertCardRef.current) return;
+    const dataUrl = await toPng(alertCardRef.current, {
+      cacheBust: true,
+      pixelRatio: 2,
+      filter: (node) => !(node instanceof HTMLElement && node.classList.contains("captureExclude")),
+    });
+    const link = document.createElement("a");
+    link.download = `earthquake-alert-${event.event_id || Date.now()}.png`;
+    link.href = dataUrl;
+    link.click();
   }
 
   async function testPush() {
@@ -742,9 +769,12 @@ function App() {
   }
 
   const alertCard = (
-    <section className={`alertCard ${level}`}>
+    <section ref={alertCardRef} className={`alertCard ${level}`}>
       <div className="alertHead">
-        {detailEventId && <a className="alertBack" href="/">返回首页</a>}
+        <div className="alertHeadActions captureExclude">
+          {detailEventId && <a className="alertBack" href="/">返回首页</a>}
+          {detailEventId && <button className="alertAction" onClick={saveAlertCardImage}>保存图片</button>}
+        </div>
         <span>{event.test ? "演练/示例" : "实时预警"}</span>
       </div>
       <h2>{isFarGlobalBrief ? "全球特大地震预警" : cardTitle(liveArrivalSeconds, displayCity)}</h2>
@@ -1161,7 +1191,21 @@ function App() {
         <div>
           <h1>Apple 设备地震预警系统</h1>
           <p className="heroText">自建地震预警中枢，默认可配套自己的 Bark Server，也支持 ntfy 和 Webhook。可为每台 Apple 设备单独设置位置和推送条件。</p>
+          <a className="repoLink" href={repoUrl} target="_blank" rel="noreferrer">开源项目 GitHub</a>
         </div>
+      </section>
+
+      <section className="quick panel">
+        <h2>快速开始</h2>
+        <ol>
+          <li><b>1. 保存设备</b><span>选 Bark、ntfy 或 Webhook，填地址后保存。</span></li>
+          <li><b>2. 测试通知</b><span>确认 Apple 设备能收到提醒。</span></li>
+          <li><b>3. 开始演练</b><span>用历史地震跑完整链路。</span></li>
+          <li><b>4. 日常查看</b><span>看监听状态、预警和通知结果。</span></li>
+        </ol>
+      </section>
+
+      <section className="monitorBlock">
         <div className="statusCard">
           <div className="statusMain">
             <span className={status?.listener.connected ? "dot on" : "dot"} />
@@ -1170,22 +1214,11 @@ function App() {
           </div>
           <div className="sources compactSources">
             {sourceStates.length ? sourceStates.map(([name, state]) => (
-              <div key={name}><span>{sourceLabel(name)}</span><strong>{state.connected ? "已连接" : "离线"}</strong></div>
+              <div key={name} className={state.connected ? "sourceOnline" : state.message === "connecting" ? "sourcePending" : "sourceOffline"}><span>{sourceLabel(name)}</span><strong>{state.connected ? "已连接" : state.message === "connecting" ? "连接中" : "离线"}</strong></div>
             )) : <div><span>Wolfx</span><strong>等待中</strong></div>}
           </div>
         </div>
-      </section>
-
-      {homeFlow}
-
-      <section className="quick panel">
-        <h2>使用流程</h2>
-        <ol>
-          <li><b>1. 添加设备</b><span>Bark App 填你的 Bark Server，复制推送地址或 Key 后保存。</span></li>
-          <li><b>2. 测试通知</b><span>先确认 iPhone 能响；不用 Bark 也可以改用 ntfy 或 Webhook。</span></li>
-          <li><b>3. 演练一次</b><span>选择历史地震场景，点“开始演练”，检查推送、卡片和地图。</span></li>
-          <li><b>4. 日常查看</b><span>首页看监听状态和三步流水线；少用的设置放在功能菜单。</span></li>
-        </ol>
+        {homeFlow}
       </section>
 
       <section className="panel devicePanel">
@@ -1198,7 +1231,21 @@ function App() {
         <form onSubmit={saveDevice}>
           <div className="two">
             <label>设备名称<input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="你的 Apple 设备" /></label>
-            <label>Bark Key 或从 Bark App 复制的推送地址<input value={form.bark_key} onChange={(e) => setForm({ ...form, bark_key: e.target.value })} placeholder="https://bark.example.com/你的Key/推送内容" /></label>
+            <label>推送方式<select value={form.push_type} onChange={(e) => setForm({ ...form, push_type: e.target.value })}>
+              <option value="bark">Bark</option>
+              <option value="ntfy">ntfy</option>
+              <option value="webhook">Webhook</option>
+            </select></label>
+          </div>
+          <div className="two">
+            {form.push_type === "bark" ? (
+              <label>Bark Key 或从 Bark App 复制的推送地址<input value={form.bark_key} onChange={(e) => setForm({ ...form, bark_key: e.target.value })} placeholder="https://bark.example.com/你的Key/推送内容" /></label>
+            ) : (
+              <label>{form.push_type === "ntfy" ? "ntfy Topic 地址" : "Webhook 地址"}<input value={form.push_url} onChange={(e) => setForm({ ...form, push_url: e.target.value })} placeholder={form.push_type === "ntfy" ? "https://ntfy.sh/你的随机topic" : "https://example.com/eew-webhook"} /></label>
+            )}
+            <div className="fieldHelp">
+              {form.push_type === "ntfy" ? "ntfy 会用 POST 发送正文，并带 Title、Priority、Tags 头。" : form.push_type === "webhook" ? "Webhook 会收到 JSON：title、body、event、decision。" : "Bark 推荐使用自建 Bark Server，iPhone 提醒效果最好。"}
+            </div>
           </div>
           <div className="three locationRow">
             <label>城市<input value={form.default_city} onChange={(e) => setForm({ ...form, default_city: e.target.value })} placeholder="成都" /></label>
@@ -1224,7 +1271,7 @@ function App() {
             {devices.map((device) => (
               <button key={device.id} className="deviceItem" onClick={() => editDevice(device)}>
                 <span>{device.name}</span>
-                <small>城市：{device.default_city || "未设置"} · 推送条件：震级 ≥ {device.min_magnitude}，距离 ≤ {device.max_distance_km} km，烈度 ≥ {device.min_intensity}</small>
+                <small>{device.push_type || "bark"} · 城市：{device.default_city || "未设置"} · 推送条件：震级 ≥ {device.min_magnitude}，距离 ≤ {device.max_distance_km} km，烈度 ≥ {device.min_intensity}</small>
                 <b>编辑</b>
               </button>
             ))}

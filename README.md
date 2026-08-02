@@ -4,6 +4,8 @@
 
 项目可以运行在任意 Docker 主机上：家用服务器、NAS、迷你主机、树莓派或云服务器都可以。
 
+开源地址：https://github.com/renxiaoyaoo/apple-eew-hub
+
 ## 主要特点
 
 - 自带可选的自建 Bark Server，适合 iPhone 强提醒。

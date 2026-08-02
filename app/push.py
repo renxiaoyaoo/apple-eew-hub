@@ -191,7 +191,7 @@ async def send_webhook(url: str, event: EarthquakeEvent, decision: Decision) -> 
         return {"channel": "webhook", "ok": False, "status_code": None, "latency_ms": latency_ms, "message": str(exc)[:300]}
 
 
-async def dispatch_push(device: dict, event: EarthquakeEvent, decision: Decision) -> dict:
+async def dispatch_push(device: dict, event: EarthquakeEvent, decision: Decision, repeat_override: int | None = None) -> dict:
     if device["push_type"] == "ntfy":
         return await send_ntfy(device.get("push_url", ""), event, decision)
     if device["push_type"] == "webhook":
@@ -204,4 +204,5 @@ async def dispatch_push(device: dict, event: EarthquakeEvent, decision: Decision
         decision.intensity_text,
         decision.arrival_seconds,
         device.get("id"),
+        repeat_override=repeat_override,
     )

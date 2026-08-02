@@ -14,8 +14,8 @@ from .config import default_system_config, get_system_config, set_system_config,
 from .core import normalize_device, process_event, public_device
 from .db import Database
 from .global_quakes import GlobalQuakeListener
-from .models import DeviceIn, DevicePatch, EarthquakeEvent, LocationUpdate, SimulationIn, SystemConfigPatch, TestPushIn, utc_now
-from .push import send_bark
+from .models import Decision, DeviceIn, DevicePatch, EarthquakeEvent, LocationUpdate, SimulationIn, SystemConfigPatch, TestPushIn, utc_now
+from .push import dispatch_push
 from .wolfx import WolfxListener
 
 app = FastAPI(title=settings.app_name)
@@ -276,14 +276,25 @@ async def test_push(payload: TestPushIn) -> dict:
             now,
         ),
     )
-    result = await send_bark(device["bark_key"], event, 0, 2, "轻微震感", 18, device_id=device["id"], repeat_override=1)
+    decision = Decision(
+        device_id=device["id"],
+        device_name=device["name"],
+        distance_km=0,
+        arrival_seconds=18,
+        intensity=2,
+        intensity_text="轻微震感",
+        status="pending",
+        should_push=True,
+        reason="test push",
+    )
+    result = await dispatch_push(device, event, decision, repeat_override=1)
     db.execute(
         """
         INSERT INTO pushes
         (event_id, device_id, push_phase, channel, ok, status_code, latency_ms, message, created_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
-        (event.event_id, device["id"], "test", "bark", int(result["ok"]), result["status_code"], result["latency_ms"], result["message"], utc_now()),
+        (event.event_id, device["id"], "test", result["channel"], int(result["ok"]), result["status_code"], result["latency_ms"], result["message"], utc_now()),
     )
     return result
 
