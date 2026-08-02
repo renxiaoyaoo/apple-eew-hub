@@ -894,15 +894,12 @@ function App() {
       <div className="historyNav">
         <a href="/catalog">
           <span>收到的地震</span>
-          <b>{catalogVisibleEvents.length}/{visibleObservedEvents.length} 条</b>
         </a>
         <a href="/history">
           <span>触发的预警</span>
-          <b>{alertVisibleEvents.length} 条</b>
         </a>
         <a href="/pushes">
           <span>发出的通知</span>
-          <b>{groupedPushEvents.length} 条</b>
         </a>
         <a href="/rules">
           <span>怎么看记录</span>
