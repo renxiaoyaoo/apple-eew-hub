@@ -839,7 +839,6 @@ function App() {
         <div><span>地震时间</span><b>{formatEventTime(event.origin_time)}</b></div>
         <div><span>预警来源</span><b>{sourceName(event.source || "unknown")}</b></div>
       </div>
-      <div className="tips">勿慌乱、先躲避、后撤离、找空间、保护头、忌电梯。</div>
       {detailEventId && <div className="reasonBox"><b>为什么提醒我</b><span>{alertExplanation}</span></div>}
     </section>
   );

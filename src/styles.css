@@ -608,10 +608,10 @@ details[open] summary {
   --alert-color: #7f0019;
   position: relative;
   display: grid;
-  gap: 10px;
-  min-height: min(680px, calc(100vh - 48px));
+  gap: 8px;
+  min-height: min(600px, calc(100vh - 48px));
   margin-bottom: 16px;
-  padding: clamp(16px, 2.6vw, 28px);
+  padding: clamp(14px, 2.2vw, 24px);
   overflow: hidden;
   color: var(--alert-color);
   border-radius: 0;
@@ -626,9 +626,9 @@ details[open] summary {
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(90deg, rgba(255, 255, 255, .08) 0 1px, transparent 1px 22px),
-    linear-gradient(0deg, rgba(255, 255, 255, .07) 0 1px, transparent 1px 22px);
-  opacity: .18;
+    linear-gradient(90deg, rgba(255, 255, 255, .045) 0 1px, transparent 1px 26px),
+    linear-gradient(0deg, rgba(255, 255, 255, .04) 0 1px, transparent 1px 26px);
+  opacity: .12;
   pointer-events: none;
 }
 
@@ -651,21 +651,21 @@ details[open] summary {
 .alertCard.red {
   --alert-color: #7f0019;
   background:
-    repeating-linear-gradient(-45deg, rgba(127, 0, 25, .035) 0 10px, transparent 10px 28px),
+    repeating-linear-gradient(-45deg, rgba(127, 0, 25, .02) 0 8px, transparent 8px 34px),
     #fff7f4;
 }
 
 .alertCard.yellow {
   --alert-color: #8a4f00;
   background:
-    repeating-linear-gradient(-45deg, rgba(168, 95, 0, .045) 0 10px, transparent 10px 28px),
+    repeating-linear-gradient(-45deg, rgba(168, 95, 0, .025) 0 8px, transparent 8px 34px),
     #fff8dc;
 }
 
 .alertCard.blue {
   --alert-color: #004e92;
   background:
-    repeating-linear-gradient(-45deg, rgba(0, 78, 146, .04) 0 10px, transparent 10px 28px),
+    repeating-linear-gradient(-45deg, rgba(0, 78, 146, .022) 0 8px, transparent 8px 34px),
     #eef6ff;
 }
 
@@ -682,10 +682,10 @@ details[open] summary {
   display: block;
   width: fit-content;
   margin: 2px 0;
-  padding: 6px 16px 8px;
+  padding: 4px 14px 6px;
   background: #191714;
   color: #fff;
-  font-size: clamp(92px, 17vw, 172px);
+  font-size: clamp(84px, 15vw, 150px);
   line-height: .86;
   letter-spacing: 0;
   font-variant-numeric: tabular-nums;
@@ -700,20 +700,17 @@ details[open] summary {
 
 .bigMetrics div,
 .epicenterLine,
-.tips,
 .reasonBox {
   border-radius: 2px;
   border: 2px solid currentColor;
   background: rgba(255, 255, 255, .78);
-  padding: 12px 14px;
+  padding: 10px 12px;
   box-shadow: 6px 6px 0 rgba(25, 23, 20, .08);
 }
 
 .alertCard.red .bigMetrics div,
-.alertCard.red .tips,
 .alertCard.red .reasonBox,
 .alertCard.blue .bigMetrics div,
-.alertCard.blue .tips,
 .alertCard.blue .reasonBox {
   background: rgba(255, 255, 255, .78);
   color: currentColor;
@@ -724,7 +721,7 @@ details[open] summary {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  min-height: 64px;
+  min-height: 52px;
 }
 
 .bigMetrics span,
@@ -757,15 +754,6 @@ details[open] summary {
 .epicenterLine small {
   color: #667085;
   font-weight: 700;
-}
-
-.tips {
-  border-color: var(--alert-color);
-  background: var(--alert-color);
-  color: #fff;
-  font-weight: 880;
-  font-size: clamp(16px, 1.8vw, 22px);
-  line-height: 1.5;
 }
 
 .reasonBox {
@@ -808,7 +796,7 @@ details[open] summary {
 
 .detailLayout .alertCard,
 .detailLayout .mapPanel {
-  min-height: 620px;
+  min-height: 580px;
   margin-bottom: 16px;
 }
 
