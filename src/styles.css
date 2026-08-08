@@ -855,20 +855,25 @@ details[open] summary {
 }
 
 .alertCredit {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  display: grid;
+  gap: 4px;
   border-top: 2px solid rgba(122, 74, 6, .35);
   padding-top: 8px;
   padding-bottom: 18px;
   color: rgba(25, 23, 20, .72);
-  font-size: 12px;
   font-weight: 820;
+}
+
+.alertCredit strong {
+  color: rgba(25, 23, 20, .82);
+  font-size: 14px;
+  line-height: 1.1;
 }
 
 .alertCredit a {
   color: inherit;
+  font-size: 12px;
+  line-height: 1.2;
   text-decoration: none;
   overflow-wrap: anywhere;
 }

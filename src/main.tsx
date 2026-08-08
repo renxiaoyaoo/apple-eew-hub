@@ -837,7 +837,7 @@ function App() {
       </div>
       {detailEventId && <div className="reasonBox"><b>为什么提醒我</b><span>{alertExplanation}</span></div>}
       <div className="alertCredit">
-        <span>Apple EEW Hub</span>
+        <strong>Apple EEW Hub</strong>
         <a href={repoUrl} target="_blank" rel="noreferrer">{repoUrl}</a>
       </div>
     </section>
