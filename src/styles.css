@@ -621,30 +621,50 @@ details[open] summary {
     inset 0 0 0 2px rgba(255, 255, 255, .62);
 }
 
-.alertCard::before {
-  content: "";
+.alertPattern {
   position: absolute;
-  inset: 0;
-  background:
-    linear-gradient(90deg, rgba(255, 255, 255, .045) 0 1px, transparent 1px 26px),
-    linear-gradient(0deg, rgba(255, 255, 255, .04) 0 1px, transparent 1px 26px);
-  opacity: .12;
+  z-index: 1;
   pointer-events: none;
 }
 
-.alertCard::after {
-  content: "";
+.alertPatternGrid {
+  inset: 0;
+  overflow: hidden;
+  opacity: .26;
+}
+
+.alertPatternGrid span {
   position: absolute;
+  top: -28%;
+  width: 2px;
+  height: 156%;
+  background: rgba(255, 255, 255, .22);
+  transform: rotate(39deg);
+  transform-origin: center;
+}
+
+.alertPatternTape {
   inset: auto 0 0;
+  display: flex;
+  gap: 14px;
   height: 18px;
-  background:
-    repeating-linear-gradient(90deg, var(--alert-color) 0 28px, transparent 28px 42px);
   opacity: .9;
-  pointer-events: none;
+}
+
+.alertPatternTape span {
+  display: block;
+  flex: 0 0 28px;
+  height: 18px;
+  background: var(--alert-color);
 }
 
 .alertCard > * {
   position: relative;
+  z-index: 2;
+}
+
+.alertCard .alertPattern {
+  position: absolute;
   z-index: 1;
 }
 

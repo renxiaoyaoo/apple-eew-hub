@@ -820,6 +820,12 @@ function App() {
 
   const alertCard = (
     <section ref={alertCardRef} className={`alertCard ${level}`}>
+      <div className="alertPattern alertPatternGrid" aria-hidden="true">
+        {Array.from({ length: 22 }, (_, index) => <span key={index} style={{ left: `${index * 42 - 180}px` }} />)}
+      </div>
+      <div className="alertPattern alertPatternTape" aria-hidden="true">
+        {Array.from({ length: 14 }, (_, index) => <span key={index} />)}
+      </div>
       <div className="alertHead">
         <span>{event.test ? "演练/示例" : "实时预警"}</span>
       </div>
