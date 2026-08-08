@@ -821,10 +821,6 @@ function App() {
   const alertCard = (
     <section ref={alertCardRef} className={`alertCard ${level}`}>
       <div className="alertHead">
-        <div className="alertHeadActions captureExclude">
-          {detailEventId && <a className="alertBack" href="/">返回首页</a>}
-          {detailEventId && <button className="alertAction" onClick={saveAlertCardImage}>保存图片</button>}
-        </div>
         <span>{event.test ? "演练/示例" : "实时预警"}</span>
       </div>
       <h2>{isFarGlobalBrief ? "全球特大地震预警" : cardTitle(liveArrivalSeconds, displayCity)}</h2>
@@ -840,6 +836,10 @@ function App() {
         <div><span>预警来源</span><b>{sourceName(event.source || "unknown")}</b></div>
       </div>
       {detailEventId && <div className="reasonBox"><b>为什么提醒我</b><span>{alertExplanation}</span></div>}
+      <div className="alertCredit">
+        <span>Apple EEW Hub</span>
+        <a href={repoUrl} target="_blank" rel="noreferrer">github.com/renxiaoyaoo/apple-eew-hub</a>
+      </div>
     </section>
   );
 
@@ -1187,6 +1187,10 @@ function App() {
   if (detailEventId) {
     return (
       <main className="appShell detailShell">
+        <div className="detailToolbar captureExclude">
+          <a className="alertBack" href="/">返回首页</a>
+          <button className="alertAction" onClick={saveAlertCardImage}>保存图片</button>
+        </div>
         <section className="detailLayout">
           {alertCard}
           {mapSection}
