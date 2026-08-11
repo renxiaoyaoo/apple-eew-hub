@@ -10,6 +10,7 @@ type Status = {
   sources: string[];
   device_count: number;
   global_quake_min_magnitude?: number;
+  global_far_alert_enabled?: boolean;
   retention?: {
     max_events: number;
     max_decisions: number;
@@ -133,6 +134,7 @@ type SystemConfig = {
   global_enabled: boolean;
   global_source_url: string;
   global_min_magnitude: number;
+  global_far_alert_enabled: boolean;
   alert_red_intensity: number;
   alert_yellow_intensity: number;
   bark_red_level: string;
@@ -212,6 +214,7 @@ const defaultSystemConfig: SystemConfig = {
   global_enabled: true,
   global_source_url: "wss://www.seismicportal.eu/standing_order/websocket",
   global_min_magnitude: 7.0,
+  global_far_alert_enabled: true,
   alert_red_intensity: 4,
   alert_yellow_intensity: 2,
   bark_red_level: "critical",
@@ -1140,6 +1143,10 @@ function App() {
               <label className="checkLine">
                 <input type="checkbox" checked={systemConfig.global_enabled} onChange={(event) => updateSystemConfig({ global_enabled: event.target.checked })} />
                 EMSC 全球 WebSocket
+              </label>
+              <label className="checkLine">
+                <input type="checkbox" checked={systemConfig.global_far_alert_enabled} onChange={(event) => updateSystemConfig({ global_far_alert_enabled: event.target.checked })} />
+                全球远场通知
               </label>
               <label>
                 全球推送最低震级

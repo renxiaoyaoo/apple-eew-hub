@@ -72,9 +72,10 @@ WOLFX_SOURCES=sc_eew,cq_eew,cenc_eew,jma_eew
 ```env
 GLOBAL_QUAKE_SOURCE_URL=wss://www.seismicportal.eu/standing_order/websocket
 GLOBAL_QUAKE_MIN_MAGNITUDE=7.0
+GLOBAL_FAR_ALERT_ENABLED=1
 ```
 
-远距离全球特大地震只做温和提醒，不显示本地倒计时。
+远场全球地震只做温和提醒，不显示本地倒计时。
 
 ## 6. 公网访问
 

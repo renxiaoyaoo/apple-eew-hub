@@ -95,6 +95,7 @@ class SystemConfigPatch(BaseModel):
     global_enabled: bool | None = None
     global_source_url: str | None = None
     global_min_magnitude: float | None = None
+    global_far_alert_enabled: bool | None = None
     alert_red_intensity: float | None = None
     alert_yellow_intensity: float | None = None
     bark_red_level: str | None = None

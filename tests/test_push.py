@@ -1,8 +1,11 @@
 from types import SimpleNamespace
 from urllib.parse import unquote
 
+import pytest
+
+from app.models import Decision
 from app.models import EarthquakeEvent
-from app.push import bark_payload
+from app.push import bark_payload, ntfy_priority, push_text, send_webhook
 
 
 def event(**kwargs):
@@ -40,11 +43,91 @@ def test_red_arrival_payload_does_not_use_call():
     assert "call" not in query
 
 
-def test_blue_global_payload_does_not_use_local_countdown():
-    path, query = bark_payload(event(source="emsc_global", magnitude=8.1), 9000, 1, "轻微震感", 0)
+def decision(**kwargs):
+    base = {
+        "device_id": 1,
+        "device_name": "iPhone",
+        "distance_km": 9000,
+        "arrival_seconds": 0,
+        "intensity": 1,
+        "intensity_text": "轻微震感",
+        "status": "passed",
+        "should_push": True,
+        "reason": "global major earthquake",
+    }
+    base.update(kwargs)
+    return Decision(**base)
 
-    assert "%E5%85%A8%E7%90%83%E7%89%B9%E5%A4%A7%E5%9C%B0%E9%9C%87%E6%8F%90%E9%86%92" in path
+
+@pytest.mark.parametrize(
+    ("magnitude", "title", "level", "volume", "priority"),
+    [
+        (7.4, "全球大震提醒：M7.4", "timeSensitive", None, "default"),
+        (7.6, "全球强震提醒：M7.6", "critical", "4", "high"),
+        (8.1, "全球特大地震提醒：M8.1", "critical", "10", "urgent"),
+    ],
+)
+def test_far_global_bark_payload_uses_magnitude_tiers_without_local_countdown(magnitude, title, level, volume, priority):
+    path, query = bark_payload(event(source="emsc_global", magnitude=magnitude), 9000, 1, "轻微震感", 0)
+    decoded = unquote(path)
+
+    assert title in decoded
+    assert "秒后到达" not in decoded
+    assert "横波已到达" not in decoded
+    assert query["level"] == level
+    if volume:
+        assert query["volume"] == volume
+    else:
+        assert "volume" not in query
     assert "call" not in query
+    assert ntfy_priority(event(source="emsc_global", magnitude=magnitude), decision()) == priority
+
+
+def test_far_global_ntfy_and_webhook_text_does_not_use_local_countdown():
+    title, body = push_text(event(source="emsc_global", magnitude=7.6, epicenter="COLOMBIA"), decision(distance_km=15000))
+
+    assert title == "全球强震提醒：M7.6"
+    assert "COLOMBIA" in body
+    assert "远场提醒" in body
+    assert "秒后到达" not in body
+    assert "横波已到达" not in body
+
+
+@pytest.mark.anyio
+async def test_far_global_webhook_payload_uses_global_text(monkeypatch):
+    captured = {}
+
+    class FakeResponse:
+        status_code = 200
+        text = "ok"
+
+    class FakeClient:
+        def __init__(self, timeout):
+            self.timeout = timeout
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+        async def post(self, url, json):
+            captured["url"] = url
+            captured["json"] = json
+            return FakeResponse()
+
+    monkeypatch.setattr("app.push.httpx.AsyncClient", FakeClient)
+
+    result = await send_webhook(
+        "https://example.invalid/eew",
+        event(source="emsc_global", magnitude=8.1, epicenter="GLOBAL TEST"),
+        decision(distance_km=12000),
+    )
+
+    assert result["ok"] is True
+    assert captured["json"]["title"] == "全球特大地震提醒：M8.1"
+    assert "远场提醒" in captured["json"]["body"]
+    assert "秒后到达" not in captured["json"]["body"]
 
 
 def test_bark_payload_links_to_device_specific_detail(monkeypatch):

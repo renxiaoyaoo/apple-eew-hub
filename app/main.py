@@ -119,6 +119,7 @@ async def status() -> dict:
         "wolfx_configured": bool(config["wolfx_ws_url"] or config["wolfx_ws_base"]),
         "wolfx_ws_base": config["wolfx_ws_base"],
         "global_quake_min_magnitude": config["global_min_magnitude"],
+        "global_far_alert_enabled": config["global_far_alert_enabled"],
         "retention": {
             "max_events": settings.max_events,
             "max_decisions": settings.max_decisions,

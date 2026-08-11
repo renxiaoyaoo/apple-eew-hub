@@ -26,6 +26,7 @@ class Settings:
     global_listener_enabled: bool = os.getenv("GLOBAL_QUAKE_LISTENER_ENABLED", "1") == "1"
     global_quake_source_url: str = os.getenv("GLOBAL_QUAKE_SOURCE_URL", "wss://www.seismicportal.eu/standing_order/websocket")
     global_quake_min_magnitude: float = float(os.getenv("GLOBAL_QUAKE_MIN_MAGNITUDE", "7.0"))
+    global_far_alert_enabled: bool = os.getenv("GLOBAL_FAR_ALERT_ENABLED", "1") == "1"
     alert_red_intensity: float = float(os.getenv("ALERT_RED_INTENSITY", "4"))
     alert_yellow_intensity: float = float(os.getenv("ALERT_YELLOW_INTENSITY", "2"))
     bark_red_level: str = os.getenv("BARK_RED_LEVEL", "critical")
@@ -64,6 +65,7 @@ def default_system_config() -> dict[str, Any]:
         "global_enabled": settings.global_listener_enabled,
         "global_source_url": settings.global_quake_source_url,
         "global_min_magnitude": settings.global_quake_min_magnitude,
+        "global_far_alert_enabled": settings.global_far_alert_enabled,
         "alert_red_intensity": settings.alert_red_intensity,
         "alert_yellow_intensity": settings.alert_yellow_intensity,
         "bark_red_level": settings.bark_red_level,

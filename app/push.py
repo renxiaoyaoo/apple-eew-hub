@@ -12,6 +12,36 @@ from .models import Decision, EarthquakeEvent
 PUSH_ICON_URL = "https://cdn-icons-png.flaticon.com/512/12688/12688039.png"
 
 
+def is_far_global(event: EarthquakeEvent, intensity: float) -> bool:
+    return event.source == "emsc_global" and intensity <= 1
+
+
+def global_tier(event: EarthquakeEvent) -> str:
+    if event.magnitude >= 8.0:
+        return "red"
+    if event.magnitude >= 7.5:
+        return "yellow"
+    return "blue"
+
+
+def global_title(event: EarthquakeEvent) -> str:
+    if event.magnitude >= 8.0:
+        return f"全球特大地震提醒：M{event.magnitude:.1f}"
+    if event.magnitude >= 7.5:
+        return f"全球强震提醒：M{event.magnitude:.1f}"
+    return f"全球大震提醒：M{event.magnitude:.1f}"
+
+
+def global_body(event: EarthquakeEvent, distance_km: float) -> str:
+    if event.magnitude >= 8.0:
+        level_text = "全球特大地震"
+    elif event.magnitude >= 7.5:
+        level_text = "全球强震"
+    else:
+        level_text = "全球大震"
+    return f"{event.epicenter}，距你约{distance_km:.0f}km。{level_text}远场提醒，不显示本地横波倒计时。"
+
+
 def bark_tier(intensity: float) -> str:
     config = get_system_config()
     if intensity >= config["alert_red_intensity"]:
@@ -21,9 +51,8 @@ def bark_tier(intensity: float) -> str:
     return "blue"
 
 
-def bark_level(intensity: float) -> dict[str, str]:
+def bark_level_for_tier(tier: str) -> dict[str, str]:
     config = get_system_config()
-    tier = bark_tier(intensity)
     if tier == "red":
         payload = {"level": config["bark_red_level"], "sound": config["bark_red_sound"]}
         if config["bark_red_volume"]:
@@ -40,6 +69,10 @@ def bark_level(intensity: float) -> dict[str, str]:
     return payload
 
 
+def bark_level(intensity: float) -> dict[str, str]:
+    return bark_level_for_tier(bark_tier(intensity))
+
+
 def bark_repeat(intensity: float) -> tuple[int, float]:
     config = get_system_config()
     tier = bark_tier(intensity)
@@ -49,8 +82,8 @@ def bark_repeat(intensity: float) -> tuple[int, float]:
 def bark_title(event: EarthquakeEvent, intensity: float, arrival_seconds: int) -> str:
     tier = bark_tier(intensity)
     prefix = "演练：" if event.test and event.source != "test" else ""
-    if event.source == "emsc_global" and intensity <= 1:
-        return f"{prefix}全球特大地震提醒：M{event.magnitude:.1f}"
+    if is_far_global(event, intensity):
+        return f"{prefix}{global_title(event)}"
     if tier == "red":
         return f"{prefix}强震预警：{arrival_seconds}秒后到达" if arrival_seconds > 0 else f"{prefix}强震预警：横波已到达"
     if tier == "yellow":
@@ -70,10 +103,11 @@ def bark_payload(
     arrival_seconds: int,
     device_id: int | None = None,
 ) -> tuple[str, dict[str, str]]:
-    tier = bark_tier(intensity)
+    far_global = is_far_global(event, intensity)
+    tier = global_tier(event) if far_global else bark_tier(intensity)
     title = bark_title(event, intensity, arrival_seconds)
-    if event.source == "emsc_global" and intensity <= 1:
-        body = f"{event.epicenter}，距你约{distance_km:.0f}km。远距离预警提醒，不显示本地倒计时。"
+    if far_global:
+        body = global_body(event, distance_km)
     else:
         body = (
             f"{event.epicenter} M{event.magnitude:.1f}，距你{distance_km:.0f}km，"
@@ -82,12 +116,12 @@ def bark_payload(
     if event.test and event.source != "test":
         body = f"【演练】{body}"
     query = {
-        **bark_level(intensity),
+        **bark_level_for_tier(tier),
         "group": "earthquake",
         "icon": PUSH_ICON_URL,
         "isArchive": "1",
     }
-    if tier == "red" and arrival_seconds > 0:
+    if not far_global and tier == "red" and arrival_seconds > 0:
         query["call"] = "1"
     if settings.public_base_url:
         event_url = settings.public_base_url.rstrip("/") + f"/event/{quote(event.event_id, safe='')}"
@@ -142,6 +176,11 @@ async def send_bark(
 
 def push_text(event: EarthquakeEvent, decision: Decision) -> tuple[str, str]:
     prefix = "演练：" if event.test and event.source != "test" else ""
+    if is_far_global(event, decision.intensity):
+        body = global_body(event, decision.distance_km)
+        if event.test and event.source != "test":
+            body = f"【演练】{body}"
+        return f"{prefix}{global_title(event)}", body
     title = f"{prefix}地震预警：{decision.arrival_seconds}秒后到达" if decision.arrival_seconds > 0 else f"{prefix}地震预警：横波已到达"
     body = (
         f"{event.epicenter} M{event.magnitude:.1f}，距你{decision.distance_km:.0f}km，"
@@ -150,6 +189,13 @@ def push_text(event: EarthquakeEvent, decision: Decision) -> tuple[str, str]:
     if event.test and event.source != "test":
         body = f"【演练】{body}"
     return title, body
+
+
+def ntfy_priority(event: EarthquakeEvent, decision: Decision) -> str:
+    if is_far_global(event, decision.intensity):
+        tier = global_tier(event)
+        return {"red": "urgent", "yellow": "high", "blue": "default"}[tier]
+    return "urgent"
 
 
 async def send_ntfy(url: str, event: EarthquakeEvent, decision: Decision) -> dict:
@@ -162,7 +208,7 @@ async def send_ntfy(url: str, event: EarthquakeEvent, decision: Decision) -> dic
             resp = await client.post(
                 url,
                 content=body.encode("utf-8"),
-                headers={"Title": title, "Priority": "urgent", "Tags": "warning"},
+                headers={"Title": title, "Priority": ntfy_priority(event, decision), "Tags": "warning"},
             )
         latency_ms = int((time.perf_counter() - started) * 1000)
         ok = 200 <= resp.status_code < 300

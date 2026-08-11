@@ -94,7 +94,8 @@ def public_device(row: dict) -> dict:
 
 
 def decide_for_device(event: EarthquakeEvent, device: dict, override: dict | None = None) -> Decision:
-    global_major_magnitude = float(get_system_config()["global_min_magnitude"])
+    config = get_system_config()
+    global_major_magnitude = float(config["global_min_magnitude"])
     if override:
         distance = float(override.get("distance_km", 0))
         arrival = int(override.get("countdown_seconds", 0))
@@ -115,6 +116,8 @@ def decide_for_device(event: EarthquakeEvent, device: dict, override: dict | Non
         should_push, reason = False, "device disabled"
     elif event.test:
         should_push, reason = True, "test drill"
+    elif event.source == "emsc_global" and distance > device["max_distance_km"] and event.magnitude >= global_major_magnitude and not config["global_far_alert_enabled"]:
+        should_push, reason = False, "global far alerts disabled"
     elif event.magnitude >= global_major_magnitude:
         should_push, reason = True, "global major earthquake"
     elif event.source == "emsc_global":
