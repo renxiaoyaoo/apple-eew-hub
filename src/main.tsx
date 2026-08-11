@@ -211,7 +211,7 @@ const defaultSystemConfig: SystemConfig = {
   wolfx_sources: ["sc_eew", "cq_eew", "cenc_eew", "jma_eew"],
   global_enabled: true,
   global_source_url: "wss://www.seismicportal.eu/standing_order/websocket",
-  global_min_magnitude: 7.5,
+  global_min_magnitude: 7.0,
   alert_red_intensity: 4,
   alert_yellow_intensity: 2,
   bark_red_level: "critical",
@@ -389,7 +389,7 @@ function decisionReasonLabel(reason?: string) {
   return labels[reason || ""] ?? reason ?? "达到提醒条件";
 }
 
-function alertReasonText(event: LatestAlert["event"], decision: NonNullable<LatestAlert["decisions"]>[number], device?: Device, globalMin = 7.5) {
+function alertReasonText(event: LatestAlert["event"], decision: NonNullable<LatestAlert["decisions"]>[number], device?: Device, globalMin = 7.0) {
   const deviceName = device?.name || decision.device_name || "这台 Apple 设备";
   const city = device?.default_city ? `，位置为${device.default_city}` : "";
   const metrics = `距震中约 ${Math.round(decision.distance_km)}km，预计烈度 ${decision.intensity.toFixed(1)}，震级 M${event?.magnitude.toFixed(1) ?? "未知"}`;
@@ -627,7 +627,7 @@ function App() {
   }, new Map<string, PushEventGroup>()).values()).sort((a, b) => (timeMs(b.latestAt) ?? 0) - (timeMs(a.latestAt) ?? 0));
   const displayCity = activeDevice?.default_city || "成都";
   const isFarGlobalBrief = event.source === "emsc_global" && decision.distance_km > (activeDevice?.max_distance_km ?? 500);
-  const alertExplanation = alertReasonText(event, decision, activeDevice, status?.global_quake_min_magnitude ?? 7.5);
+  const alertExplanation = alertReasonText(event, decision, activeDevice, status?.global_quake_min_magnitude ?? 7.0);
   const isEventHistoryPage = routePath === "/history";
   const isCatalogPage = routePath === "/catalog";
   const isPushHistoryPage = routePath === "/pushes";
@@ -1042,7 +1042,7 @@ function App() {
             <ul>
               <li>只有需要提醒你的地震才会出现在这里。</li>
               <li>本地相关地震按每台设备的位置、震级、距离和烈度判断。</li>
-              <li>全球 M{status?.global_quake_min_magnitude ?? 7.5}+ 会进入这里；离你很远时只做温和提醒。</li>
+              <li>全球 M{status?.global_quake_min_magnitude ?? 7.0}+ 会进入这里；离你很远时只做温和提醒。</li>
             </ul>
           </div>
           <div>
@@ -1226,7 +1226,7 @@ function App() {
       <main className="appShell">
         {historyPageHeader(
           "触发的预警",
-          `这里显示真正需要提醒你的地震，包括演练、本地相关地震和全球 M${status?.global_quake_min_magnitude ?? 7.5}+。未触发的小震、远震只在“收到的地震”里。`,
+          `这里显示真正需要提醒你的地震，包括演练、本地相关地震和全球 M${status?.global_quake_min_magnitude ?? 7.0}+。未触发的小震、远震只在“收到的地震”里。`,
         )}
         {renderEventLogSection()}
       </main>

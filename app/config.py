@@ -25,7 +25,7 @@ class Settings:
     listener_enabled: bool = os.getenv("WOLFX_LISTENER_ENABLED", "1") == "1"
     global_listener_enabled: bool = os.getenv("GLOBAL_QUAKE_LISTENER_ENABLED", "1") == "1"
     global_quake_source_url: str = os.getenv("GLOBAL_QUAKE_SOURCE_URL", "wss://www.seismicportal.eu/standing_order/websocket")
-    global_quake_min_magnitude: float = float(os.getenv("GLOBAL_QUAKE_MIN_MAGNITUDE", "7.5"))
+    global_quake_min_magnitude: float = float(os.getenv("GLOBAL_QUAKE_MIN_MAGNITUDE", "7.0"))
     alert_red_intensity: float = float(os.getenv("ALERT_RED_INTENSITY", "4"))
     alert_yellow_intensity: float = float(os.getenv("ALERT_YELLOW_INTENSITY", "2"))
     bark_red_level: str = os.getenv("BARK_RED_LEVEL", "critical")
@@ -97,7 +97,7 @@ def set_system_config(config: dict[str, Any]) -> dict[str, Any]:
     global _system_config
     merged = {**default_system_config(), **config}
     merged["wolfx_sources"] = [str(item).strip() for item in merged.get("wolfx_sources", []) if str(item).strip()]
-    merged["global_min_magnitude"] = float(merged.get("global_min_magnitude") or 7.5)
+    merged["global_min_magnitude"] = float(merged.get("global_min_magnitude") or 7.0)
     merged["alert_red_intensity"] = float(merged.get("alert_red_intensity") or 4)
     merged["alert_yellow_intensity"] = float(merged.get("alert_yellow_intensity") or 2)
     if not 5 <= merged["global_min_magnitude"] <= 10:

@@ -4,6 +4,7 @@ import pytest
 from app.core import decide_for_device, process_event, public_device
 from app.db import Database
 from app.models import EarthquakeEvent
+from app.config import default_system_config, set_system_config
 
 
 def device(**kwargs):
@@ -64,6 +65,21 @@ def test_global_major_earthquake_pushes_gently_when_far_away():
     assert decision.reason == "global major earthquake"
     assert decision.intensity <= 1
     assert decision.intensity_text == "轻微震感"
+
+
+def test_configured_global_major_threshold_controls_far_away_push():
+    set_system_config({"global_min_magnitude": 7.0})
+    try:
+        decision = decide_for_device(
+            event(test=False, source="emsc_global", magnitude=7.4, latitude=5.6, longitude=-76.6),
+            device(max_distance_km=5000),
+        )
+    finally:
+        set_system_config(default_system_config())
+
+    assert decision.should_push is True
+    assert decision.reason == "global major earthquake"
+    assert decision.intensity <= 1
 
 
 def test_global_major_earthquake_uses_local_intensity_when_device_is_nearby():

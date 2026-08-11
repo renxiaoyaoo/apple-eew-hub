@@ -1,4 +1,5 @@
 from app.db import Database
+from app.config import default_system_config, set_system_config
 from app.global_quakes import global_record_reason, normalize_emsc_message, should_record_global_event
 
 
@@ -178,3 +179,25 @@ def test_should_record_global_major_quake_even_when_far(tmp_path):
 
     assert event is not None
     assert should_record_global_event(db, event) is True
+
+
+def test_should_record_colombia_scale_global_quake_by_default(tmp_path):
+    set_system_config({"global_min_magnitude": 7.0})
+    db = Database(tmp_path / "eew.sqlite3")
+    db.init()
+    insert_device(db)
+    event = normalize_emsc_message(
+        {
+            "data": {
+                "geometry": {"coordinates": [-76.6, 5.6, 110]},
+                "properties": {"unid": "colombia", "mag": 7.4, "flynn_region": "COLOMBIA"},
+            }
+        }
+    )
+
+    assert event is not None
+    try:
+        assert should_record_global_event(db, event) is True
+        assert global_record_reason(db, event) == "全球特大地震"
+    finally:
+        set_system_config(default_system_config())

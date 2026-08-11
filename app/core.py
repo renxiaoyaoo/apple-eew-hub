@@ -7,9 +7,8 @@ from .db import Database
 from .geo import estimate_arrival_seconds, estimate_intensity, haversine_km, intensity_text, wave_status
 from .models import Decision, EarthquakeEvent, utc_now
 from .push import dispatch_push
-from .config import settings
+from .config import get_system_config, settings
 
-GLOBAL_MAJOR_MAGNITUDE = 7.5
 MAX_SCHEDULED_ARRIVAL_SECONDS = 1800
 
 
@@ -95,6 +94,7 @@ def public_device(row: dict) -> dict:
 
 
 def decide_for_device(event: EarthquakeEvent, device: dict, override: dict | None = None) -> Decision:
+    global_major_magnitude = float(get_system_config()["global_min_magnitude"])
     if override:
         distance = float(override.get("distance_km", 0))
         arrival = int(override.get("countdown_seconds", 0))
@@ -103,7 +103,7 @@ def decide_for_device(event: EarthquakeEvent, device: dict, override: dict | Non
         distance = haversine_km(event.latitude, event.longitude, device["latitude"], device["longitude"])
         arrival = estimate_arrival_seconds(event.origin_time, distance)
         intensity = estimate_intensity(event.magnitude, distance, event.depth_km)
-        if distance > device["max_distance_km"] and event.magnitude >= GLOBAL_MAJOR_MAGNITUDE:
+        if distance > device["max_distance_km"] and event.magnitude >= global_major_magnitude:
             intensity = min(intensity, 1)
     text = intensity_text(intensity)
     status = wave_status(arrival)
@@ -115,7 +115,7 @@ def decide_for_device(event: EarthquakeEvent, device: dict, override: dict | Non
         should_push, reason = False, "device disabled"
     elif event.test:
         should_push, reason = True, "test drill"
-    elif event.magnitude >= GLOBAL_MAJOR_MAGNITUDE:
+    elif event.magnitude >= global_major_magnitude:
         should_push, reason = True, "global major earthquake"
     elif event.source == "emsc_global":
         if distance <= device["max_distance_km"] and event.magnitude >= device["min_magnitude"] and intensity >= max(2, device["min_intensity"]):
