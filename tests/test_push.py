@@ -60,27 +60,25 @@ def decision(**kwargs):
 
 
 @pytest.mark.parametrize(
-    ("magnitude", "title", "level", "volume", "priority"),
+    ("magnitude", "title"),
     [
-        (7.4, "全球大震提醒：M7.4", "timeSensitive", None, "default"),
-        (7.6, "全球强震提醒：M7.6", "critical", "4", "high"),
-        (8.1, "全球特大地震提醒：M8.1", "critical", "10", "urgent"),
+        (7.4, "全球大震提醒：M7.4"),
+        (7.6, "全球强震提醒：M7.6"),
+        (8.1, "全球特大地震提醒：M8.1"),
     ],
 )
-def test_far_global_bark_payload_uses_magnitude_tiers_without_local_countdown(magnitude, title, level, volume, priority):
+def test_far_global_bark_payload_uses_magnitude_tiers_without_local_countdown(magnitude, title):
     path, query = bark_payload(event(source="emsc_global", magnitude=magnitude), 9000, 1, "轻微震感", 0)
     decoded = unquote(path)
 
     assert title in decoded
     assert "秒后到达" not in decoded
     assert "横波已到达" not in decoded
-    assert query["level"] == level
-    if volume:
-        assert query["volume"] == volume
-    else:
-        assert "volume" not in query
+    assert query["level"] == "passive"
+    assert "sound" not in query
+    assert "volume" not in query
     assert "call" not in query
-    assert ntfy_priority(event(source="emsc_global", magnitude=magnitude), decision()) == priority
+    assert ntfy_priority(event(source="emsc_global", magnitude=magnitude), decision()) == "min"
 
 
 def test_far_global_ntfy_and_webhook_text_does_not_use_local_countdown():

@@ -39,7 +39,7 @@ def global_body(event: EarthquakeEvent, distance_km: float) -> str:
         level_text = "全球强震"
     else:
         level_text = "全球大震"
-    return f"{event.epicenter}，距你约{distance_km:.0f}km。{level_text}远场提醒，不显示本地横波倒计时。"
+    return f"{event.epicenter}，距你约{distance_km:.0f}km。{level_text}静默远场提醒，不显示本地横波倒计时。"
 
 
 def bark_tier(intensity: float) -> str:
@@ -71,6 +71,10 @@ def bark_level_for_tier(tier: str) -> dict[str, str]:
 
 def bark_level(intensity: float) -> dict[str, str]:
     return bark_level_for_tier(bark_tier(intensity))
+
+
+def bark_silent_level() -> dict[str, str]:
+    return {"level": "passive"}
 
 
 def bark_repeat(intensity: float) -> tuple[int, float]:
@@ -116,7 +120,7 @@ def bark_payload(
     if event.test and event.source != "test":
         body = f"【演练】{body}"
     query = {
-        **bark_level_for_tier(tier),
+        **(bark_silent_level() if far_global else bark_level_for_tier(tier)),
         "group": "earthquake",
         "icon": PUSH_ICON_URL,
         "isArchive": "1",
@@ -193,8 +197,7 @@ def push_text(event: EarthquakeEvent, decision: Decision) -> tuple[str, str]:
 
 def ntfy_priority(event: EarthquakeEvent, decision: Decision) -> str:
     if is_far_global(event, decision.intensity):
-        tier = global_tier(event)
-        return {"red": "urgent", "yellow": "high", "blue": "default"}[tier]
+        return "min"
     return "urgent"
 
 
