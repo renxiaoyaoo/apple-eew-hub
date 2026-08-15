@@ -102,6 +102,22 @@ def test_global_far_alert_switch_only_disables_far_away_push():
     assert near_decision.reason == "global major earthquake"
 
 
+def test_global_source_over_local_cap_does_not_match_local_threshold():
+    set_system_config({"global_min_magnitude": 7.0, "global_far_alert_enabled": True})
+    try:
+        decision = decide_for_device(
+            event(test=False, source="emsc_global", magnitude=6.8, latitude=3.8, longitude=96.0),
+            device(max_distance_km=5000, min_magnitude=1, min_intensity=1),
+        )
+    finally:
+        set_system_config(default_system_config())
+
+    assert decision.distance_km > 1000
+    assert decision.intensity <= 1
+    assert decision.should_push is False
+    assert decision.reason == "below threshold"
+
+
 def test_global_major_earthquake_uses_local_intensity_when_device_is_nearby():
     decision = decide_for_device(
         event(test=False, magnitude=8.2, latitude=35.0, longitude=140.0),

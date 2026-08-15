@@ -201,3 +201,25 @@ def test_should_record_colombia_scale_global_quake_by_default(tmp_path):
         assert global_record_reason(db, event) == "全球特大地震"
     finally:
         set_system_config(default_system_config())
+
+
+def test_far_global_m6_event_does_not_record_as_local_warning(tmp_path):
+    set_system_config({"global_min_magnitude": 7.0})
+    db = Database(tmp_path / "eew.sqlite3")
+    db.init()
+    insert_device(db, max_distance_km=5000, min_magnitude=1, min_intensity=1)
+    event = normalize_emsc_message(
+        {
+            "data": {
+                "geometry": {"coordinates": [96.0, 3.8, 160]},
+                "properties": {"unid": "sumatra", "mag": 6.8, "flynn_region": "NORTHERN SUMATRA, INDONESIA"},
+            }
+        }
+    )
+
+    assert event is not None
+    try:
+        assert should_record_global_event(db, event) is False
+        assert global_record_reason(db, event) == "仅监听到"
+    finally:
+        set_system_config(default_system_config())

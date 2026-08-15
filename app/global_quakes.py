@@ -9,7 +9,7 @@ from typing import Any
 import websockets
 
 from .config import get_system_config, settings
-from .core import decide_for_device, normalize_device, process_event
+from .core import decide_for_device, is_global_local_distance, normalize_device, process_event
 from .db import Database
 from .models import EarthquakeEvent
 
@@ -84,7 +84,7 @@ def should_record_global_event(db: Database, event: EarthquakeEvent) -> bool:
         record_intensity = max(2, device["min_intensity"])
         if decision.should_push:
             return True
-        if decision.distance_km <= device["max_distance_km"] and event.magnitude >= device["min_magnitude"] and decision.intensity >= record_intensity:
+        if is_global_local_distance(decision.distance_km, device) and event.magnitude >= device["min_magnitude"] and decision.intensity >= record_intensity:
             return True
     return False
 
@@ -98,7 +98,7 @@ def global_record_reason(db: Database, event: EarthquakeEvent) -> str:
         record_intensity = max(2, device["min_intensity"])
         if decision.should_push:
             return "满足设备推送条件"
-        if decision.distance_km <= device["max_distance_km"] and event.magnitude >= device["min_magnitude"] and decision.intensity >= record_intensity:
+        if is_global_local_distance(decision.distance_km, device) and event.magnitude >= device["min_magnitude"] and decision.intensity >= record_intensity:
             return "满足设备本地烈度"
     return "仅监听到"
 

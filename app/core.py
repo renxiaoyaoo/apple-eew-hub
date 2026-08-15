@@ -10,6 +10,11 @@ from .push import dispatch_push
 from .config import get_system_config, settings
 
 MAX_SCHEDULED_ARRIVAL_SECONDS = 1800
+GLOBAL_LOCAL_MAX_DISTANCE_KM = 1000
+
+
+def is_global_local_distance(distance_km: float, device: dict) -> bool:
+    return distance_km <= min(float(device["max_distance_km"]), GLOBAL_LOCAL_MAX_DISTANCE_KM)
 
 
 async def _dispatch_and_update_push(db: Database, push_id: int, device: dict, event: EarthquakeEvent, decision: Decision) -> None:
@@ -104,7 +109,9 @@ def decide_for_device(event: EarthquakeEvent, device: dict, override: dict | Non
         distance = haversine_km(event.latitude, event.longitude, device["latitude"], device["longitude"])
         arrival = estimate_arrival_seconds(event.origin_time, distance)
         intensity = estimate_intensity(event.magnitude, distance, event.depth_km)
-        if distance > device["max_distance_km"] and event.magnitude >= global_major_magnitude:
+        if event.source == "emsc_global" and not is_global_local_distance(distance, device):
+            intensity = min(intensity, 1)
+        elif distance > device["max_distance_km"] and event.magnitude >= global_major_magnitude:
             intensity = min(intensity, 1)
     text = intensity_text(intensity)
     status = wave_status(arrival)
@@ -116,12 +123,12 @@ def decide_for_device(event: EarthquakeEvent, device: dict, override: dict | Non
         should_push, reason = False, "device disabled"
     elif event.test:
         should_push, reason = True, "test drill"
-    elif event.source == "emsc_global" and distance > device["max_distance_km"] and event.magnitude >= global_major_magnitude and not config["global_far_alert_enabled"]:
+    elif event.source == "emsc_global" and not is_global_local_distance(distance, device) and event.magnitude >= global_major_magnitude and not config["global_far_alert_enabled"]:
         should_push, reason = False, "global far alerts disabled"
     elif event.magnitude >= global_major_magnitude:
         should_push, reason = True, "global major earthquake"
     elif event.source == "emsc_global":
-        if distance <= device["max_distance_km"] and event.magnitude >= device["min_magnitude"] and intensity >= max(2, device["min_intensity"]):
+        if is_global_local_distance(distance, device) and event.magnitude >= device["min_magnitude"] and intensity >= max(2, device["min_intensity"]):
             should_push, reason = True, "global local threshold matched"
         else:
             should_push, reason = False, "below threshold"
