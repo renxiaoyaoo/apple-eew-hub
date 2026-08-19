@@ -16,6 +16,10 @@ from .models import EarthquakeEvent
 
 LOGGER = logging.getLogger(__name__)
 REPORT_SUFFIX_RE = re.compile(r"^(\d{12}\.\d+)_\d+$")
+WOLFX_TIME_FORMATS = (
+    "%Y/%m/%d %H:%M:%S",
+    "%Y-%m-%d %H:%M:%S",
+)
 
 
 def _pick(data: dict[str, Any], *keys: str, default: Any = None) -> Any:
@@ -28,6 +32,24 @@ def _pick(data: dict[str, Any], *keys: str, default: Any = None) -> Any:
 def canonical_wolfx_event_id(event_id: str) -> str:
     match = REPORT_SUFFIX_RE.match(event_id)
     return match.group(1) if match else event_id
+
+
+def normalize_wolfx_time(value: Any) -> str:
+    if not value:
+        return datetime.now(timezone.utc).isoformat()
+    text = str(value).strip()
+    if text.endswith("Z"):
+        return text[:-1] + "+00:00"
+    try:
+        return datetime.fromisoformat(text).isoformat()
+    except ValueError:
+        pass
+    for fmt in WOLFX_TIME_FORMATS:
+        try:
+            return datetime.strptime(text, fmt).isoformat()
+        except ValueError:
+            continue
+    return text
 
 
 def normalize_wolfx_message(data: dict[str, Any], source_hint: str = "") -> EarthquakeEvent | None:
@@ -50,9 +72,7 @@ def normalize_wolfx_message(data: dict[str, Any], source_hint: str = "") -> Eart
     )
     if latitude is None or longitude is None or magnitude is None or not epicenter:
         return None
-    origin_time = _pick(nested, "OriginTime", "originTime", "ReportTime", "reportTime", "Time", "time")
-    if not origin_time:
-        origin_time = datetime.now(timezone.utc).isoformat()
+    origin_time = normalize_wolfx_time(_pick(nested, "OriginTime", "originTime", "ReportTime", "reportTime", "Time", "time"))
     if not event_id:
         event_id = f"{source}:{origin_time}:{latitude}:{longitude}:{magnitude}"
     else:

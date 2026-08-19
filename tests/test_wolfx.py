@@ -47,3 +47,24 @@ def test_normalize_wolfx_message_strips_report_suffix_from_event_id():
     )
     assert event is not None
     assert event.event_id == "202607130103.0001"
+
+
+def test_normalize_wolfx_message_accepts_jma_slash_time():
+    event = normalize_wolfx_message(
+        {
+            "type": "jma_eew",
+            "Data": {
+                "EventID": "20260820005028",
+                "HypoCenter": "浦河沖",
+                "Latitude": 42.0,
+                "Longitude": 142.6,
+                "Magnitude": 3.9,
+                "Depth": 50,
+                "OriginTime": "2026/08/20 00:50:21",
+            },
+        }
+    )
+
+    assert event is not None
+    assert event.source == "jma_eew"
+    assert event.origin_time == "2026-08-20T00:50:21"
