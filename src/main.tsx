@@ -61,6 +61,13 @@ type LatestAlert = {
 };
 
 type Logs = {
+  counts?: {
+    events: number;
+    decisions: number;
+    pushes: number;
+    observed_events: number;
+    observed_recorded: number;
+  };
   events: Array<{
     event_id: string;
     source: string;
@@ -581,6 +588,11 @@ function App() {
     const key = canonicalLogEventId(item.event_id);
     return items.findIndex((candidate) => canonicalLogEventId(candidate.event_id) === key) === index;
   });
+  const observedTotal = logs.counts?.observed_events ?? visibleObservedEvents.length;
+  const observedLimit = status?.retention?.max_events;
+  const observedLimitText = observedLimit
+    ? `保留 ${observedTotal}/${observedLimit}`
+    : `保留 ${observedTotal}`;
   const catalogVisibleEvents = showAllReceived
     ? visibleObservedEvents
     : visibleObservedEvents.filter((item) =>
@@ -947,6 +959,7 @@ function App() {
             {showAllReceived ? "隐藏全球小震" : "显示全部"}
           </button>
           <span>{catalogVisibleEvents.length}/{visibleObservedEvents.length} 条</span>
+          <span className={observedLimit && observedTotal >= observedLimit ? "limitReached" : ""}>{observedLimitText}</span>
         </div>
       </div>
       <div className="eventLogList">
@@ -997,7 +1010,7 @@ function App() {
       <a href="/catalog">
         <b>1</b>
         <span>收到的地震</span>
-        <small>{catalogVisibleEvents.length}/{visibleObservedEvents.length} 条，默认隐藏全球小震</small>
+        <small>{catalogVisibleEvents.length}/{visibleObservedEvents.length} 条 · {observedLimitText}</small>
       </a>
       <a href="/history">
         <b>2</b>

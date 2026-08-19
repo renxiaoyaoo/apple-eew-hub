@@ -365,6 +365,13 @@ async def alert_by_id(event_id: str) -> dict:
 @app.get("/api/logs")
 async def logs() -> dict:
     return {
+        "counts": {
+            "events": db.one("SELECT COUNT(*) AS c FROM events")["c"],
+            "decisions": db.one("SELECT COUNT(*) AS c FROM decisions")["c"],
+            "pushes": db.one("SELECT COUNT(*) AS c FROM pushes")["c"],
+            "observed_events": db.one("SELECT COUNT(*) AS c FROM observed_events")["c"],
+            "observed_recorded": db.one("SELECT COUNT(*) AS c FROM observed_events WHERE recorded = 1")["c"],
+        },
         "events": db.query(
             """
             SELECT event_id, source, report_num, is_final, is_cancel, epicenter,

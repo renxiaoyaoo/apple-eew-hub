@@ -1390,7 +1390,25 @@ details[open] summary {
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
+  align-items: center;
   gap: 8px;
+}
+
+.historyActions > span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  border-radius: 8px;
+  background: #f1e8de;
+  color: #5b3a2e;
+  padding: 7px 10px;
+  font-size: 13px;
+  font-weight: 820;
+}
+
+.historyActions > span.limitReached {
+  background: #fff1c2;
+  color: #7a3519;
 }
 
 .dangerButton {
