@@ -61,16 +61,22 @@ def bark_tier(intensity: float) -> str:
 def bark_level_for_tier(tier: str) -> dict[str, str]:
     config = get_system_config()
     if tier == "red":
-        payload = {"level": config["bark_red_level"], "sound": config["bark_red_sound"]}
+        payload = {"level": config["bark_red_level"]}
+        if config["bark_red_sound"]:
+            payload["sound"] = config["bark_red_sound"]
         if config["bark_red_volume"]:
             payload["volume"] = config["bark_red_volume"]
         return payload
     if tier == "yellow":
-        payload = {"level": config["bark_yellow_level"], "sound": config["bark_yellow_sound"]}
+        payload = {"level": config["bark_yellow_level"]}
+        if config["bark_yellow_sound"]:
+            payload["sound"] = config["bark_yellow_sound"]
         if config["bark_yellow_volume"]:
             payload["volume"] = config["bark_yellow_volume"]
         return payload
-    payload = {"level": config["bark_blue_level"], "sound": config["bark_blue_sound"]}
+    payload = {"level": config["bark_blue_level"]}
+    if config["bark_blue_sound"]:
+        payload["sound"] = config["bark_blue_sound"]
     if config["bark_blue_volume"]:
         payload["volume"] = config["bark_blue_volume"]
     return payload

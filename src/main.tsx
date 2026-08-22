@@ -229,14 +229,14 @@ const defaultSystemConfig: SystemConfig = {
   bark_red_sound: "alarm",
   bark_red_repeat: 1,
   bark_red_repeat_gap_seconds: 0,
-  bark_yellow_level: "critical",
+  bark_yellow_level: "timeSensitive",
   bark_yellow_volume: "4",
   bark_yellow_sound: "alarm",
   bark_yellow_repeat: 1,
   bark_yellow_repeat_gap_seconds: 0,
-  bark_blue_level: "timeSensitive",
+  bark_blue_level: "active",
   bark_blue_volume: "",
-  bark_blue_sound: "alarm",
+  bark_blue_sound: "",
   bark_blue_repeat: 1,
   bark_blue_repeat_gap_seconds: 0,
 };
@@ -1100,7 +1100,7 @@ function App() {
           <h2>当前提醒方式</h2>
           <p>红色：烈度 ≥ {systemConfig.alert_red_intensity}。发现时发送 {repeatText(systemConfig.bark_red_repeat)} {barkLevelText(systemConfig.bark_red_level)}，音量 {systemConfig.bark_red_volume || "默认"}，铃声 {systemConfig.bark_red_sound}，并使用持续响；如果横波尚未到达，到达时再发一次“已到达”。</p>
           <p>黄色：烈度 ≥ {systemConfig.alert_yellow_intensity}。发现时发送 {repeatText(systemConfig.bark_yellow_repeat)} {barkLevelText(systemConfig.bark_yellow_level)}，音量 {systemConfig.bark_yellow_volume || "默认"}，铃声 {systemConfig.bark_yellow_sound}；如果横波尚未到达，到达时再发一次。</p>
-          <p>蓝色：低于黄色但仍需要提醒时使用。发现时发送 {repeatText(systemConfig.bark_blue_repeat)} {barkLevelText(systemConfig.bark_blue_level)}，音量 {systemConfig.bark_blue_volume || "默认"}，铃声 {systemConfig.bark_blue_sound}；如果横波尚未到达，到达时再发一次。</p>
+          <p>蓝色：低于黄色但仍需要提醒时使用。发现时发送 {repeatText(systemConfig.bark_blue_repeat)} {barkLevelText(systemConfig.bark_blue_level)}，音量 {systemConfig.bark_blue_volume || "默认"}，铃声 {systemConfig.bark_blue_sound || "系统默认"}；如果横波尚未到达，到达时再发一次。</p>
         </div>
       </section>
       <section className="panel pushSettingsPanel">

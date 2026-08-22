@@ -43,6 +43,15 @@ def test_red_arrival_payload_does_not_use_call():
     assert "call" not in query
 
 
+def test_blue_bark_payload_uses_active_without_custom_alarm():
+    _, query = bark_payload(event(magnitude=4.6), 120, 1.5, "轻微震感", 20)
+
+    assert query["level"] == "active"
+    assert "sound" not in query
+    assert "volume" not in query
+    assert "call" not in query
+
+
 def decision(**kwargs):
     base = {
         "device_id": 1,
