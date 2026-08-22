@@ -370,6 +370,11 @@ function sourceLabel(name: string) {
   return translated === name ? name : `${name} · ${translated}`;
 }
 
+function epicenterLabel(source = "", epicenter = "") {
+  if (source === "jma_eew") return `日本气象厅：${epicenter}`;
+  return epicenter;
+}
+
 function pushPhaseText(phase?: string) {
   if (phase === "arrival") return "到达";
   if (phase === "test") return "测试";
@@ -392,6 +397,7 @@ function decisionReasonLabel(reason?: string) {
     "threshold matched": "达到设备阈值",
     "felt intensity": "预计可能有感",
     "below threshold": "未达到阈值",
+    "jma forecast only": "日本气象厅预告",
     "cancel report": "取消报",
     "device disabled": "设备已停用",
     "device disabled test alerts": "设备不接收测试",
@@ -641,7 +647,8 @@ function App() {
     return groups;
   }, new Map<string, PushEventGroup>()).values()).sort((a, b) => (timeMs(b.latestAt) ?? 0) - (timeMs(a.latestAt) ?? 0));
   const displayCity = activeDevice?.default_city || "成都";
-  const isFarGlobalBrief = event.source === "emsc_global" && decision.distance_km > (activeDevice?.max_distance_km ?? 500);
+  const eventEpicenterLabel = epicenterLabel(event.source, event.epicenter);
+  const isFarGlobalBrief = ["emsc_global", "jma_eew"].includes(event.source || "") && decision.distance_km > 1000 && decision.intensity <= 1;
   const alertExplanation = alertReasonText(event, decision, activeDevice, status?.global_quake_min_magnitude ?? 7.0);
   const isEventHistoryPage = routePath === "/history";
   const isCatalogPage = routePath === "/catalog";
@@ -851,7 +858,7 @@ function App() {
         <div><span>震级</span><b>M{event.magnitude.toFixed(1)}</b></div>
         <div><span>烈度</span><b>{decision.intensity}</b></div>
         <div><span>震感</span><b>{decision.intensity_text}</b></div>
-        <div><span>震中</span><b>{event.epicenter}</b></div>
+        <div><span>震中</span><b>{eventEpicenterLabel}</b></div>
         <div><span>深度</span><b>{event.depth_km} km</b></div>
         <div><span>地震时间</span><b>{formatEventTime(event.origin_time)}</b></div>
         <div><span>预警来源</span><b>{sourceName(event.source || "unknown")}</b></div>
@@ -877,7 +884,7 @@ function App() {
         <FitMap points={[epicenter, userPoint]} />
         <Circle center={epicenter} radius={waveKm * 1000} pathOptions={{ color: level === "red" ? "#dc2626" : level === "yellow" ? "#d97706" : "#2563eb", fillOpacity: 0.08, weight: 2 }} />
         <Polyline positions={[epicenter, userPoint]} pathOptions={{ color: "#1f2937", weight: 2, dashArray: "7 9" }} />
-        <Marker position={epicenter} icon={L.divIcon({ className: `pin epicenter pulse ${level}`, html: "<span>震</span>" })}><Popup>{event.epicenter}</Popup></Marker>
+        <Marker position={epicenter} icon={L.divIcon({ className: `pin epicenter pulse ${level}`, html: "<span>震</span>" })}><Popup>{eventEpicenterLabel}</Popup></Marker>
         <Marker position={userPoint} icon={L.divIcon({ className: "pin user", html: "我" })}><Popup>{activeDevice?.default_city || "成都"}</Popup></Marker>
       </MapContainer>
     </section>

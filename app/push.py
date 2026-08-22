@@ -10,10 +10,17 @@ from .config import get_system_config, settings
 from .models import Decision, EarthquakeEvent
 
 PUSH_ICON_URL = "https://cdn-icons-png.flaticon.com/512/12688/12688039.png"
+FAR_FIELD_SOURCES = {"emsc_global", "jma_eew"}
 
 
 def is_far_global(event: EarthquakeEvent, intensity: float) -> bool:
-    return event.source == "emsc_global" and intensity <= 1
+    return event.source in FAR_FIELD_SOURCES and intensity <= 1
+
+
+def place_text(event: EarthquakeEvent) -> str:
+    if event.source == "jma_eew":
+        return f"日本气象厅：{event.epicenter}"
+    return event.epicenter
 
 
 def global_tier(event: EarthquakeEvent) -> str:
@@ -39,7 +46,7 @@ def global_body(event: EarthquakeEvent, distance_km: float) -> str:
         level_text = "全球强震"
     else:
         level_text = "全球大震"
-    return f"{event.epicenter}，距你约{distance_km:.0f}km。{level_text}静默远场提醒，不显示本地横波倒计时。"
+    return f"{place_text(event)}，距你约{distance_km:.0f}km。{level_text}静默远场提醒，不显示本地横波倒计时。"
 
 
 def bark_tier(intensity: float) -> str:
@@ -114,7 +121,7 @@ def bark_payload(
         body = global_body(event, distance_km)
     else:
         body = (
-            f"{event.epicenter} M{event.magnitude:.1f}，距你{distance_km:.0f}km，"
+            f"{place_text(event)} M{event.magnitude:.1f}，距你{distance_km:.0f}km，"
             f"{arrival_text(arrival_seconds)}，预计烈度{intensity:g}：{text}。勿乘电梯，保护头部。"
         )
     if event.test and event.source != "test":
@@ -187,7 +194,7 @@ def push_text(event: EarthquakeEvent, decision: Decision) -> tuple[str, str]:
         return f"{prefix}{global_title(event)}", body
     title = f"{prefix}地震预警：{decision.arrival_seconds}秒后到达" if decision.arrival_seconds > 0 else f"{prefix}地震预警：横波已到达"
     body = (
-        f"{event.epicenter} M{event.magnitude:.1f}，距你{decision.distance_km:.0f}km，"
+        f"{place_text(event)} M{event.magnitude:.1f}，距你{decision.distance_km:.0f}km，"
         f"{arrival_text(decision.arrival_seconds)}，预计烈度{decision.intensity:g}：{decision.intensity_text}。勿乘电梯，保护头部。"
     )
     if event.test and event.source != "test":

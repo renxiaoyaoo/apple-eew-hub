@@ -118,6 +118,70 @@ def test_global_source_over_local_cap_does_not_match_local_threshold():
     assert decision.reason == "below threshold"
 
 
+def test_far_jma_m6_warning_does_not_match_loose_local_threshold():
+    set_system_config({"global_min_magnitude": 7.0, "global_far_alert_enabled": True})
+    try:
+        decision = decide_for_device(
+            event(
+                test=False,
+                source="jma_eew",
+                epicenter="茨城県南部",
+                latitude=36.0,
+                longitude=140.1,
+                magnitude=6.4,
+                depth_km=80,
+                origin_time="2026-08-23T02:00:39",
+            ),
+            device(max_distance_km=5000, min_magnitude=1, min_intensity=1),
+        )
+    finally:
+        set_system_config(default_system_config())
+
+    assert decision.distance_km > 1000
+    assert decision.intensity <= 1
+    assert decision.should_push is False
+    assert decision.reason == "below threshold"
+
+
+def test_near_jma_warning_still_uses_local_thresholds():
+    decision = decide_for_device(
+        event(
+            test=False,
+            source="jma_eew",
+            epicenter="茨城県南部",
+            latitude=36.0,
+            longitude=140.1,
+            magnitude=6.4,
+            depth_km=80,
+            origin_time="2026-08-23T02:00:39",
+        ),
+        device(latitude=35.9, longitude=140.0, max_distance_km=500, min_magnitude=4.5, min_intensity=2),
+    )
+
+    assert decision.distance_km <= 1000
+    assert decision.should_push is True
+
+
+def test_jma_forecast_only_does_not_push_even_nearby():
+    decision = decide_for_device(
+        event(
+            test=False,
+            source="jma_eew",
+            epicenter="茨城県南部",
+            latitude=36.0,
+            longitude=140.1,
+            magnitude=6.4,
+            depth_km=80,
+            origin_time="2026-08-23T02:00:39",
+            raw={"isWarn": False},
+        ),
+        device(latitude=35.9, longitude=140.0, max_distance_km=500, min_magnitude=4.5, min_intensity=2),
+    )
+
+    assert decision.should_push is False
+    assert decision.reason == "jma forecast only"
+
+
 def test_global_major_earthquake_uses_local_intensity_when_device_is_nearby():
     decision = decide_for_device(
         event(test=False, magnitude=8.2, latitude=35.0, longitude=140.0),

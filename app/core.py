@@ -11,10 +11,21 @@ from .config import get_system_config, settings
 
 MAX_SCHEDULED_ARRIVAL_SECONDS = 1800
 GLOBAL_LOCAL_MAX_DISTANCE_KM = 1000
+FAR_FIELD_SOURCES = {"emsc_global", "jma_eew"}
 
 
 def is_global_local_distance(distance_km: float, device: dict) -> bool:
     return distance_km <= min(float(device["max_distance_km"]), GLOBAL_LOCAL_MAX_DISTANCE_KM)
+
+
+def is_far_field_event(event: EarthquakeEvent, distance_km: float, device: dict) -> bool:
+    return event.source in FAR_FIELD_SOURCES and not is_global_local_distance(distance_km, device)
+
+
+def is_jma_forecast_only(event: EarthquakeEvent) -> bool:
+    if event.source != "jma_eew":
+        return False
+    return event.raw.get("isWarn") is False
 
 
 async def _dispatch_and_update_push(db: Database, push_id: int, device: dict, event: EarthquakeEvent, decision: Decision) -> None:
@@ -68,7 +79,7 @@ def _has_push(db: Database, event_id: str, device_id: int, phase: str) -> bool:
 
 
 def _should_schedule_arrival(event: EarthquakeEvent, decision: Decision) -> bool:
-    if event.source == "emsc_global" and decision.intensity <= 1:
+    if event.source in FAR_FIELD_SOURCES and decision.intensity <= 1:
         return False
     return 1 <= decision.arrival_seconds <= MAX_SCHEDULED_ARRIVAL_SECONDS
 
@@ -109,7 +120,7 @@ def decide_for_device(event: EarthquakeEvent, device: dict, override: dict | Non
         distance = haversine_km(event.latitude, event.longitude, device["latitude"], device["longitude"])
         arrival = estimate_arrival_seconds(event.origin_time, distance)
         intensity = estimate_intensity(event.magnitude, distance, event.depth_km)
-        if event.source == "emsc_global" and not is_global_local_distance(distance, device):
+        if is_far_field_event(event, distance, device):
             intensity = min(intensity, 1)
         elif distance > device["max_distance_km"] and event.magnitude >= global_major_magnitude:
             intensity = min(intensity, 1)
@@ -123,11 +134,13 @@ def decide_for_device(event: EarthquakeEvent, device: dict, override: dict | Non
         should_push, reason = False, "device disabled"
     elif event.test:
         should_push, reason = True, "test drill"
-    elif event.source == "emsc_global" and not is_global_local_distance(distance, device) and event.magnitude >= global_major_magnitude and not config["global_far_alert_enabled"]:
+    elif is_jma_forecast_only(event):
+        should_push, reason = False, "jma forecast only"
+    elif is_far_field_event(event, distance, device) and event.magnitude >= global_major_magnitude and not config["global_far_alert_enabled"]:
         should_push, reason = False, "global far alerts disabled"
     elif event.magnitude >= global_major_magnitude:
         should_push, reason = True, "global major earthquake"
-    elif event.source == "emsc_global":
+    elif event.source in FAR_FIELD_SOURCES:
         if is_global_local_distance(distance, device) and event.magnitude >= device["min_magnitude"] and intensity >= max(2, device["min_intensity"]):
             should_push, reason = True, "global local threshold matched"
         else:

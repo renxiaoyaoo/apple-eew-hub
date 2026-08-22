@@ -91,6 +91,18 @@ def test_far_global_ntfy_and_webhook_text_does_not_use_local_countdown():
     assert "横波已到达" not in body
 
 
+def test_far_jma_global_payload_is_silent_and_has_source_context():
+    path, query = bark_payload(event(source="jma_eew", magnitude=7.2, epicenter="茨城県南部"), 3385, 1, "轻微震感", 4500)
+    decoded = unquote(path)
+
+    assert "全球大震提醒：M7.2" in decoded
+    assert "日本气象厅：茨城県南部" in decoded
+    assert "秒后到达" not in decoded
+    assert query["level"] == "passive"
+    assert "sound" not in query
+    assert "call" not in query
+
+
 @pytest.mark.anyio
 async def test_far_global_webhook_payload_uses_global_text(monkeypatch):
     captured = {}
