@@ -6,12 +6,11 @@ import logging
 from datetime import datetime, timezone
 from typing import Any
 
-import websockets
-
 from .config import get_system_config, settings
 from .core import decide_for_device, is_global_local_distance, normalize_device, process_event
 from .db import Database
 from .models import EarthquakeEvent
+from .simple_ws import SimpleWebSocket
 
 LOGGER = logging.getLogger(__name__)
 
@@ -156,13 +155,7 @@ class GlobalQuakeListener:
 
     async def _connect(self) -> None:
         self._set_state(False, "connecting")
-        async with websockets.connect(
-            get_system_config()["global_source_url"],
-            ping_interval=15,
-            ping_timeout=20,
-            compression=None,
-            user_agent_header="apple-eew-hub/0.1",
-        ) as ws:
+        async with SimpleWebSocket(get_system_config()["global_source_url"]) as ws:
             self._set_state(True, "connected")
             async for raw_message in ws:
                 try:

@@ -4,446 +4,33 @@ import { Circle, MapContainer, Marker, Polyline, Popup, TileLayer, useMap } from
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "./styles.css";
-
-type Status = {
-  listener: { connected: boolean; message: string; sources?: Record<string, { connected: boolean; url: string; message: string }> };
-  sources: string[];
-  device_count: number;
-  global_quake_min_magnitude?: number;
-  global_far_alert_enabled?: boolean;
-  retention?: {
-    max_events: number;
-    max_decisions: number;
-    max_pushes: number;
-  };
-  alert_levels?: {
-    red_intensity: number;
-    yellow_intensity: number;
-    bark: Record<"red" | "yellow" | "blue", { level: string; volume?: string; sound: string; repeat?: number }>;
-  };
-};
-
-type Device = {
-  id: number;
-  name: string;
-  push_type: "bark" | "ntfy" | "webhook";
-  default_city: string;
-  latitude: number;
-  longitude: number;
-  min_magnitude: number;
-  max_distance_km: number;
-  min_intensity: number;
-};
-
-type LatestAlert = {
-  event?: {
-    event_id?: string;
-    source?: string;
-    epicenter: string;
-    latitude: number;
-    longitude: number;
-    magnitude: number;
-    depth_km: number;
-    origin_time?: string;
-    test: boolean;
-  };
-  decisions?: Array<{
-    device_id?: number;
-    device_name: string;
-    distance_km: number;
-    arrival_seconds: number;
-    intensity: number;
-    intensity_text: string;
-    should_push: boolean;
-    reason?: string;
-    created_at?: string;
-  }>;
-};
-
-type Logs = {
-  counts?: {
-    events: number;
-    decisions: number;
-    pushes: number;
-    observed_events: number;
-    observed_recorded: number;
-  };
-  events: Array<{
-    event_id: string;
-    source: string;
-    epicenter: string;
-    magnitude: number;
-    depth_km: number;
-    origin_time: string;
-    test?: number | boolean;
-    updated_at: string;
-  }>;
-  decisions: Array<{
-    event_id: string;
-    distance_km: number;
-    arrival_seconds: number;
-    intensity: number;
-    intensity_text: string;
-    should_push: number | boolean;
-    reason: string;
-    pushed: number | boolean;
-    created_at: string;
-  }>;
-  pushes: Array<{
-    id: number;
-    event_id: string;
-    device_name?: string;
-    epicenter?: string;
-    magnitude?: number;
-    test?: number | boolean;
-    push_phase?: string;
-    channel: string;
-    ok: number | boolean;
-    status_code?: number;
-    latency_ms?: number;
-    message: string;
-    created_at: string;
-  }>;
-  observed_events: Array<{
-    event_id: string;
-    source: string;
-    epicenter: string;
-    latitude: number;
-    longitude: number;
-    magnitude: number;
-    depth_km: number;
-    origin_time: string;
-    recorded: number | boolean;
-    reason: string;
-    updated_at: string;
-  }>;
-};
-
-type PushEventGroup = {
-  key: string;
-  event_id: string;
-  epicenter: string;
-  magnitude?: number;
-  test?: number | boolean;
-  phases: Set<string>;
-  devices: Set<string>;
-  attempts: number;
-  okCount: number;
-  latencyMs: number;
-  latestAt: string;
-};
-
-type SystemConfig = {
-  wolfx_enabled: boolean;
-  wolfx_ws_url: string;
-  wolfx_ws_base: string;
-  wolfx_sources: string[];
-  global_enabled: boolean;
-  global_source_url: string;
-  global_min_magnitude: number;
-  global_far_alert_enabled: boolean;
-  alert_red_intensity: number;
-  alert_yellow_intensity: number;
-  bark_red_level: string;
-  bark_red_volume: string;
-  bark_red_sound: string;
-  bark_red_repeat: number;
-  bark_red_repeat_gap_seconds: number;
-  bark_yellow_level: string;
-  bark_yellow_volume: string;
-  bark_yellow_sound: string;
-  bark_yellow_repeat: number;
-  bark_yellow_repeat_gap_seconds: number;
-  bark_blue_level: string;
-  bark_blue_volume: string;
-  bark_blue_sound: string;
-  bark_blue_repeat: number;
-  bark_blue_repeat_gap_seconds: number;
-};
-
-type DrillPreset = {
-  id: string;
-  source?: string;
-  name: string;
-  tag: string;
-  epicenter: string;
-  latitude: number;
-  longitude: number;
-  magnitude: number;
-  depth_km: number;
-  distance_km: number;
-  countdown_seconds: number;
-  intensity: number;
-  target_city: string;
-  target_latitude: number;
-  target_longitude: number;
-};
-
-const chengdu = { lat: 30.5728, lng: 104.0668 };
-const fallbackEpicenter = { lat: 28.43, lng: 104.71 };
-const cityCoords: Record<string, { lat: number; lng: number }> = {
-  成都: chengdu,
-  重庆: { lat: 29.563, lng: 106.5516 },
-  绵阳: { lat: 31.4675, lng: 104.6796 },
-  德阳: { lat: 31.1268, lng: 104.3979 },
-  乐山: { lat: 29.5521, lng: 103.7654 },
-  宜宾: { lat: 28.7513, lng: 104.6417 },
-  泸州: { lat: 28.8718, lng: 105.4423 },
-  雅安: { lat: 30.0154, lng: 103.0398 },
-  南充: { lat: 30.8373, lng: 106.1107 },
-  自贡: { lat: 29.3392, lng: 104.7784 },
-};
-
-const sourceOptions = [
-  ["sc_eew", "四川地震预警"],
-  ["cq_eew", "重庆地震预警"],
-  ["cenc_eew", "中国地震台网"],
-  ["fj_eew", "福建地震预警"],
-  ["jma_eew", "日本气象厅"],
-  ["all_eew", "全部 Wolfx 源"],
-] as const;
-
-const barkLevelOptions = [
-  ["critical", "最高级强提醒"],
-  ["timeSensitive", "及时提醒"],
-  ["active", "普通提醒"],
-  ["passive", "静默/低打扰"],
-] as const;
-
-const defaultGlobalCatalogMagnitude = 4.5;
-const repoUrl = "https://github.com/renxiaoyaoo/apple-eew-hub";
-
-const defaultSystemConfig: SystemConfig = {
-  wolfx_enabled: true,
-  wolfx_ws_url: "",
-  wolfx_ws_base: "wss://ws-api.wolfx.jp",
-  wolfx_sources: ["sc_eew", "cq_eew", "cenc_eew", "jma_eew"],
-  global_enabled: true,
-  global_source_url: "wss://www.seismicportal.eu/standing_order/websocket",
-  global_min_magnitude: 7.0,
-  global_far_alert_enabled: true,
-  alert_red_intensity: 4,
-  alert_yellow_intensity: 2,
-  bark_red_level: "critical",
-  bark_red_volume: "8",
-  bark_red_sound: "alarm",
-  bark_red_repeat: 1,
-  bark_red_repeat_gap_seconds: 0,
-  bark_yellow_level: "timeSensitive",
-  bark_yellow_volume: "4",
-  bark_yellow_sound: "alarm",
-  bark_yellow_repeat: 1,
-  bark_yellow_repeat_gap_seconds: 0,
-  bark_blue_level: "active",
-  bark_blue_volume: "",
-  bark_blue_sound: "",
-  bark_blue_repeat: 1,
-  bark_blue_repeat_gap_seconds: 0,
-};
-
-const drillPresets: DrillPreset[] = [
-  {
-    id: "wenchuan-2008",
-    name: "2008 汶川 M8.0",
-    tag: "强烈避险",
-    epicenter: "四川阿坝州汶川县",
-    latitude: 31.0,
-    longitude: 103.4,
-    magnitude: 8.0,
-    depth_km: 14,
-    distance_km: 86,
-    countdown_seconds: 18,
-    intensity: 5,
-    target_city: "成都",
-    target_latitude: chengdu.lat,
-    target_longitude: chengdu.lng,
-  },
-  {
-    id: "luding-2022",
-    name: "2022 泸定 M6.8",
-    tag: "明显有感",
-    epicenter: "四川甘孜州泸定县",
-    latitude: 29.59,
-    longitude: 102.08,
-    magnitude: 6.8,
-    depth_km: 16,
-    distance_km: 225,
-    countdown_seconds: 43,
-    intensity: 3,
-    target_city: "成都",
-    target_latitude: chengdu.lat,
-    target_longitude: chengdu.lng,
-  },
-  {
-    id: "jiuzhaigou-2017",
-    name: "2017 九寨沟 M7.0",
-    tag: "远场提醒",
-    epicenter: "四川阿坝州九寨沟县",
-    latitude: 33.2,
-    longitude: 103.82,
-    magnitude: 7.0,
-    depth_km: 20,
-    distance_km: 293,
-    countdown_seconds: 63,
-    intensity: 1,
-    target_city: "成都",
-    target_latitude: chengdu.lat,
-    target_longitude: chengdu.lng,
-  },
-  {
-    id: "chile-2010-global",
-    source: "emsc_global",
-    name: "2010 智利 M8.8",
-    tag: "全球远场",
-    epicenter: "智利马乌莱近海",
-    latitude: -35.91,
-    longitude: -72.73,
-    magnitude: 8.8,
-    depth_km: 35,
-    distance_km: 18600,
-    countdown_seconds: 0,
-    intensity: 1,
-    target_city: "成都",
-    target_latitude: chengdu.lat,
-    target_longitude: chengdu.lng,
-  },
-];
-
-async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const token = localStorage.getItem("eewAuthToken") || "";
-  const headers = new Headers(options.headers);
-  headers.set("Content-Type", "application/json");
-  if (token) headers.set("Authorization", `Bearer ${token}`);
-  const response = await fetch(path, { ...options, headers });
-  if (!response.ok) throw new Error(await response.text());
-  return response.json();
-}
-
-function severity(intensity = 0, levels?: Status["alert_levels"]) {
-  if (intensity >= (levels?.red_intensity ?? 4)) return "red";
-  if (intensity >= (levels?.yellow_intensity ?? 2)) return "yellow";
-  return "blue";
-}
-
-function cardTitle(seconds: number, city: string) {
-  if (seconds > 0) return "地震横波即将到达";
-  return `地震横波已到达${city || "你的位置"}`;
-}
-
-function formatEventTime(value?: string) {
-  if (!value) return "未知";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "未知";
-  return date.toLocaleString("zh-CN", {
-    timeZone: "Asia/Shanghai",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
-}
-
-function timeMs(value?: string) {
-  if (!value) return null;
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date.getTime();
-}
-
-function sourceName(name: string) {
-  const names: Record<string, string> = {
-    sc_eew: "四川地震预警",
-    cq_eew: "重庆地震预警",
-    cenc_eew: "中国地震台网",
-    fj_eew: "福建地震预警",
-    jma_eew: "日本气象厅",
-    drill: "演练",
-    test: "测试通知",
-    wolfx: "Wolfx",
-    emsc_global: "EMSC 全球地震",
-  };
-  return names[name] ?? name;
-}
-
-function sourceLabel(name: string) {
-  const translated = sourceName(name);
-  return translated === name ? name : `${name} · ${translated}`;
-}
-
-function epicenterLabel(source = "", epicenter = "") {
-  if (source === "jma_eew") return `日本气象厅：${epicenter}`;
-  return epicenter;
-}
-
-function pushPhaseText(phase?: string) {
-  if (phase === "arrival") return "到达";
-  if (phase === "test") return "测试";
-  return "发现";
-}
-
-function barkLevelText(value: string) {
-  return barkLevelOptions.find(([level]) => level === value)?.[1] ?? value;
-}
-
-function repeatText(value: number) {
-  return `${Math.max(1, Number(value) || 1)} 次`;
-}
-
-function decisionReasonLabel(reason?: string) {
-  const labels: Record<string, string> = {
-    "test drill": "演练模式",
-    "global major earthquake": "全球特大地震",
-    "global local threshold matched": "全球源地震达到本地条件",
-    "threshold matched": "达到设备阈值",
-    "felt intensity": "预计可能有感",
-    "below threshold": "未达到阈值",
-    "jma forecast only": "日本气象厅预告",
-    "cancel report": "取消报",
-    "device disabled": "设备已停用",
-    "device disabled test alerts": "设备不接收测试",
-  };
-  return labels[reason || ""] ?? reason ?? "达到提醒条件";
-}
-
-function alertReasonText(event: LatestAlert["event"], decision: NonNullable<LatestAlert["decisions"]>[number], device?: Device, globalMin = 7.0) {
-  const deviceName = device?.name || decision.device_name || "这台 Apple 设备";
-  const city = device?.default_city ? `，位置为${device.default_city}` : "";
-  const metrics = `距震中约 ${Math.round(decision.distance_km)}km，预计烈度 ${decision.intensity.toFixed(1)}，震级 M${event?.magnitude.toFixed(1) ?? "未知"}`;
-  if (event?.test) return `因为这是演练，系统会按演练场景给 ${deviceName} 发送提醒。`;
-  if (decision.reason === "global major earthquake") {
-    return `因为这场地震达到全球特大地震阈值 M${globalMin}+。它会作为温和提醒发送，不按本地横波倒计时理解。`;
-  }
-  if (decision.reason === "felt intensity") {
-    return `因为 ${metrics}，系统判断可能有感，所以提醒 ${deviceName}${city}。`;
-  }
-  const threshold = device
-    ? `；这台设备的条件是 M${device.min_magnitude}+、${device.max_distance_km}km 内、烈度 ${device.min_intensity}+`
-    : "";
-  return `因为 ${metrics}${threshold}，所以触发 ${deviceName}${city} 的预警。`;
-}
-
-function canonicalLogEventId(eventId: string) {
-  return eventId.replace(/^(\d{12}\.\d+)_\d+$/, "$1");
-}
-
-function parseBarkKey(value: string) {
-  const trimmed = value.trim();
-  try {
-    const url = new URL(trimmed);
-    const key = url.pathname.split("/").filter(Boolean)[0];
-    return key || trimmed;
-  } catch {
-    return trimmed.replace(/^\/+/, "").split("/")[0] || trimmed;
-  }
-}
-
-function coordsFor(city: string, latitude: string, longitude: string) {
-  const lat = Number(latitude);
-  const lng = Number(longitude);
-  if (Number.isFinite(lat) && Number.isFinite(lng)) return { lat, lng };
-  const normalized = city.replace(/市$/, "").trim();
-  return cityCoords[normalized] ?? chengdu;
-}
+import { AuthError, api } from "./api";
+import {
+  alertReasonText,
+  barkLevelOptions,
+  barkLevelText,
+  canonicalLogEventId,
+  cardTitle,
+  chengdu,
+  coordsFor,
+  decisionReasonLabel,
+  defaultGlobalCatalogMagnitude,
+  defaultSystemConfig,
+  drillPresets,
+  epicenterLabel,
+  fallbackEpicenter,
+  formatEventTime,
+  parseBarkKey,
+  pushPhaseText,
+  repeatText,
+  repoUrl,
+  severity,
+  sourceLabel,
+  sourceName,
+  sourceOptions,
+  timeMs,
+} from "./domain";
+import type { Device, LatestAlert, Logs, PushEventGroup, Status, SystemConfig } from "./types";
 
 function FitMap({ points }: { points: [number, number][] }) {
   const map = useMap();
@@ -469,6 +56,8 @@ function App() {
   const [latest, setLatest] = useState<LatestAlert>({});
   const [logs, setLogs] = useState<Logs>({ events: [], decisions: [], pushes: [], observed_events: [] });
   const [message, setMessage] = useState("");
+  const [authRequired, setAuthRequired] = useState(false);
+  const [authInput, setAuthInput] = useState("");
   const [editingId, setEditingId] = useState<number | null>(null);
   const [selectedDrill, setSelectedDrill] = useState(drillPresets[0].id);
   const [alertStartedAt, setAlertStartedAt] = useState(Date.now());
@@ -503,7 +92,8 @@ function App() {
             setDetailNotFound(false);
             return value;
           })
-          .catch(() => {
+          .catch((error) => {
+            if (error instanceof AuthError) throw error;
             setDetailNotFound(true);
             return {};
           })
@@ -519,12 +109,22 @@ function App() {
     setDevices(nextDevices);
     setLatest(nextLatest);
     setLogs(nextLogs);
+    setAuthRequired(false);
     if (!configDirtyRef.current) setSystemConfig({ ...defaultSystemConfig, ...nextConfig });
   }
 
   useEffect(() => {
-    refresh().catch((error) => setMessage(error.message));
-    const id = window.setInterval(() => refresh().catch(() => undefined), 5000);
+    refresh().catch((error) => {
+      if (error instanceof AuthError) {
+        setAuthRequired(true);
+        setMessage("");
+      } else {
+        setMessage(error.message);
+      }
+    });
+    const id = window.setInterval(() => refresh().catch((error) => {
+      if (error instanceof AuthError) setAuthRequired(true);
+    }), 5000);
     return () => window.clearInterval(id);
   }, []);
 
@@ -838,6 +438,47 @@ function App() {
     setConfigDirty(false);
     setMessage("系统配置已保存，监听源已按新配置重连。");
     await refresh();
+  }
+
+  async function submitAuth(event: React.FormEvent) {
+    event.preventDefault();
+    localStorage.setItem("eewAuthToken", authInput.trim());
+    try {
+      await refresh();
+      setMessage("已通过访问口令。");
+    } catch (error) {
+      if (error instanceof AuthError) {
+        localStorage.removeItem("eewAuthToken");
+        setAuthRequired(true);
+        setMessage("访问口令不正确。");
+      } else {
+        setMessage(error instanceof Error ? error.message : "验证失败");
+      }
+    }
+  }
+
+  if (authRequired) {
+    return (
+      <main className="authShell">
+        <form className="authPanel" onSubmit={submitAuth}>
+          <span className="eyebrow">Apple EEW Hub</span>
+          <h1>输入访问口令</h1>
+          <p>此实例启用了内置 API 口令。公网访问仍建议放在 Cloudflare Access 或反向代理认证后面。</p>
+          <label>
+            访问口令
+            <input
+              type="password"
+              value={authInput}
+              onChange={(event) => setAuthInput(event.target.value)}
+              autoFocus
+              placeholder="EEW_AUTH_TOKEN"
+            />
+          </label>
+          <button type="submit">进入系统</button>
+          {message && <p className="message">{message}</p>}
+        </form>
+      </main>
+    );
   }
 
   const alertCard = (

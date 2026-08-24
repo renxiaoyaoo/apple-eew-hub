@@ -11,7 +11,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from .config import default_system_config, get_system_config, set_system_config, settings
-from .core import normalize_device, process_event, public_device
+from .core import normalize_device, process_event, public_device, restore_scheduled_arrival_pushes
 from .db import Database
 from .global_quakes import GlobalQuakeListener
 from .models import Decision, DeviceIn, DevicePatch, EarthquakeEvent, LocationUpdate, SimulationIn, SystemConfigPatch, TestPushIn, utc_now
@@ -24,10 +24,7 @@ listener = WolfxListener(db)
 global_listener = GlobalQuakeListener(db)
 
 PUBLIC_PATHS = {
-    "/",
     "/api/health",
-    "/api/status",
-    "/api/latest-alert",
 }
 
 
@@ -50,6 +47,7 @@ async def security_and_auth(request: Request, call_next):
 async def startup() -> None:
     db.init()
     set_system_config(db.get_state("system_config", default_system_config()))
+    restore_scheduled_arrival_pushes(db)
     listener.start()
     global_listener.start()
 

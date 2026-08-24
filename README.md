@@ -29,6 +29,12 @@ docker compose up -d --build
 
 详细步骤见 [QUICKSTART.md](./QUICKSTART.md)。
 
+## 公网访问和认证
+
+默认适合在家庭内网使用。管理页和 Bark Server 如果要暴露到公网，推荐放在 Cloudflare Access、反向代理登录或 VPN 后面。
+
+`EEW_AUTH_TOKEN` 是内置 API 口令兜底：设置后，网页会要求输入口令，除 `/api/health` 外的 API 都需要 Bearer Token。它不是完整账号系统，也不替代 Cloudflare Access。
+
 ## Bark 可用可不用
 
 推荐使用自建 Bark Server，因为 iPhone 上提醒效果最好。Docker Compose 默认会启动 `bark-server`，Bark App 里填你的 Bark Server 地址后，复制设备 Key 到管理页即可。
@@ -58,6 +64,7 @@ docker compose up -d --build
 - 每台设备只保存最新位置。
 - 浏览器定位只在点击“获取位置”时执行。
 - 不保存位置轨迹。
+- 公网访问建议使用 Cloudflare Access / VPN / 反向代理认证。
 - 不要提交 `.env`、`data/`、SQLite 数据库、真实 Bark Key、手机号、账号或 token。
 
 ## 隐私检查机制
@@ -87,6 +94,8 @@ python3 -m py_compile app/*.py scripts/privacy_check.py tests/*.py
 docker compose run --rm -v "$PWD:/src" --entrypoint sh eew-hub \
   -c "cd /src && pip install -r requirements-dev.txt && PYTHONPATH=/src pytest"
 ```
+
+前端静态文件由 `npm run build` 或 Docker 构建生成到 `public/`，不提交到仓库。
 
 ## License
 

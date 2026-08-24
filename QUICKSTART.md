@@ -83,13 +83,21 @@ GLOBAL_FAR_ALERT_ENABLED=1
 
 如果要在外面访问管理页或让 Bark App 访问自建 Bark Server，可以用 Cloudflare Tunnel、frp 或反向代理。
 
-建议设置：
+推荐做法：
+
+- 管理页放在 Cloudflare Access、VPN 或反向代理登录后面。
+- Bark Server 可以单独暴露给 Bark App 使用。
+- `EEW_AUTH_TOKEN` 作为内置 API 口令兜底，不替代 Cloudflare Access。
+
+建议至少设置：
 
 ```env
 EEW_AUTH_TOKEN=换成一段足够长的随机字符串
 PUBLIC_BASE_URL=https://eew.example.com
 BARK_BASE_URL=http://bark-server:18762
 ```
+
+设置 `EEW_AUTH_TOKEN` 后，网页会要求输入这个口令；除健康检查外，API 都会被保护。
 
 Bark App 里填写外部地址：
 

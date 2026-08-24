@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from contextlib import contextmanager
 from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
@@ -107,6 +108,18 @@ class Database:
         conn = sqlite3.connect(self.path, check_same_thread=False)
         conn.row_factory = sqlite3.Row
         return conn
+
+    @contextmanager
+    def transaction(self):
+        conn = self.connect()
+        try:
+            yield conn
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
 
     def init(self) -> None:
         with self.connect() as conn:

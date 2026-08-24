@@ -1,7 +1,7 @@
 import anyio
 import pytest
 
-from app.core import decide_for_device, process_event, public_device
+from app.core import ARRIVAL_TASKS, BACKGROUND_TASKS, decide_for_device, process_event, public_device, restore_scheduled_arrival_pushes
 from app.db import Database
 from app.models import EarthquakeEvent
 from app.config import default_system_config, set_system_config
@@ -251,3 +251,110 @@ async def test_process_event_sends_initial_and_arrival_push(tmp_path, monkeypatc
     rows = db.query("SELECT push_phase, ok, message FROM pushes ORDER BY id")
     assert [row["push_phase"] for row in rows] == ["initial", "arrival"]
     assert [row["message"] for row in rows] == ["sent 1", "sent 0"]
+
+
+@pytest.mark.anyio
+async def test_background_push_failure_is_recorded_and_cleaned_up(tmp_path, monkeypatch, caplog):
+    async def failing_dispatch(device_row, event_row, decision):
+        raise RuntimeError("push backend down")
+
+    monkeypatch.setattr("app.core.dispatch_push", failing_dispatch)
+    db = Database(tmp_path / "eew.sqlite3")
+    db.init()
+    db.execute(
+        """
+        INSERT INTO devices
+        (name, push_type, bark_key, push_url, default_city, latitude, longitude,
+         min_magnitude, max_distance_km, min_intensity, enabled, receive_tests, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        ("iPhone", "bark", "fake-key", "", "成都", 30.58, 103.92, 4.5, 500, 2, 1, 1, "now", "now"),
+    )
+
+    await process_event(db, event(), {"distance_km": 199, "countdown_seconds": 0, "intensity": 3})
+    await anyio.sleep(0.1)
+
+    assert not BACKGROUND_TASKS
+    assert "Background push task failed" in caplog.text
+    row = db.one("SELECT ok, message FROM pushes")
+    assert row["ok"] == 0
+    assert row["message"] == "dispatch failed: RuntimeError"
+
+
+def test_restore_scheduled_arrival_pushes_reschedules_pending_arrival(tmp_path, monkeypatch):
+    captured = []
+
+    def fake_schedule(db_arg, device_arg, event_arg, decision_arg):
+        captured.append((device_arg, event_arg, decision_arg))
+        return True
+
+    monkeypatch.setattr("app.core._schedule_arrival_push", fake_schedule)
+    db = Database(tmp_path / "eew.sqlite3")
+    db.init()
+    db.execute(
+        """
+        INSERT INTO devices
+        (name, push_type, bark_key, push_url, default_city, latitude, longitude,
+         min_magnitude, max_distance_km, min_intensity, enabled, receive_tests, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        ("iPhone", "bark", "fake-key", "", "成都", 30.58, 103.92, 4.5, 500, 2, 1, 1, "now", "now"),
+    )
+    anyio.run(process_event, db, event(event_id="restore-event"), {"distance_km": 199, "countdown_seconds": 120, "intensity": 3})
+    BACKGROUND_TASKS.clear()
+    captured.clear()
+
+    scheduled = restore_scheduled_arrival_pushes(db)
+
+    assert scheduled == 1
+    assert len(captured) == 1
+    restored_device, restored_event, _ = captured[0]
+    assert restored_device["latitude"] == 30.58
+    assert restored_device["longitude"] == 103.92
+    assert restored_event.latitude == 28.43
+    assert restored_event.longitude == 104.71
+
+
+def test_process_event_does_not_schedule_duplicate_arrival_tasks(tmp_path, monkeypatch):
+    captured = []
+
+    class FakeTask:
+        def __init__(self, coro):
+            self.coro = coro
+            self.cancelled = False
+            self.coro.close()
+
+        def done(self):
+            return False
+
+        def cancel(self):
+            self.cancelled = True
+
+    def fake_create(coro):
+        task = FakeTask(coro)
+        captured.append(task)
+        return task
+
+    monkeypatch.setattr("app.core._create_background_task", fake_create)
+    db = Database(tmp_path / "eew.sqlite3")
+    db.init()
+    db.execute(
+        """
+        INSERT INTO devices
+        (name, push_type, bark_key, push_url, default_city, latitude, longitude,
+         min_magnitude, max_distance_km, min_intensity, enabled, receive_tests, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        ("iPhone", "bark", "fake-key", "", "成都", 30.58, 103.92, 4.5, 500, 2, 1, 1, "now", "now"),
+    )
+    try:
+        anyio.run(process_event, db, event(event_id="multi-report", report_num=1), {"distance_km": 199, "countdown_seconds": 120, "intensity": 3})
+        anyio.run(process_event, db, event(event_id="multi-report", report_num=2), {"distance_km": 199, "countdown_seconds": 90, "intensity": 3})
+    finally:
+        ARRIVAL_TASKS.clear()
+
+    assert len(captured) == 3
+    assert captured[1].cancelled is True
+    assert captured[2].cancelled is False
+    rows = db.query("SELECT push_phase FROM pushes ORDER BY id")
+    assert [row["push_phase"] for row in rows] == ["initial"]

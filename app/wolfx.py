@@ -7,12 +7,11 @@ import re
 from datetime import datetime, timezone
 from typing import Any
 
-import websockets
-
 from .config import get_system_config, settings
 from .core import process_event
 from .db import Database
 from .models import EarthquakeEvent
+from .simple_ws import SimpleWebSocket
 
 LOGGER = logging.getLogger(__name__)
 REPORT_SUFFIX_RE = re.compile(r"^(\d{12}\.\d+)_\d+$")
@@ -148,13 +147,7 @@ class WolfxListener:
         while self.running:
             try:
                 self._set_source_state(source, {"connected": False, "message": "connecting", "url": url})
-                async with websockets.connect(
-                    url,
-                    ping_interval=20,
-                    ping_timeout=20,
-                    compression=None,
-                    user_agent_header="apple-eew-hub/0.1",
-                ) as ws:
+                async with SimpleWebSocket(url) as ws:
                     retry_delay = 5
                     self._set_source_state(source, {"connected": True, "message": "connected", "url": url})
                     async for message in ws:
