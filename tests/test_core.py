@@ -118,6 +118,18 @@ def test_global_source_over_local_cap_does_not_match_local_threshold():
     assert decision.reason == "below threshold"
 
 
+def test_nearby_magnitude_threshold_pushes_even_when_estimated_intensity_is_low():
+    decision = decide_for_device(
+        event(test=False, source="cq_eew", epicenter="四川内江市隆昌市", magnitude=4.6, latitude=29.22, longitude=105.205, depth_km=12),
+        device(latitude=30.653431, longitude=104.015044, min_magnitude=4.5, max_distance_km=500, min_intensity=2),
+    )
+
+    assert decision.distance_km < 200
+    assert decision.intensity < 2
+    assert decision.should_push is True
+    assert decision.reason == "local magnitude threshold matched"
+
+
 def test_far_jma_m6_warning_does_not_match_loose_local_threshold():
     set_system_config({"global_min_magnitude": 7.0, "global_far_alert_enabled": True})
     try:

@@ -232,10 +232,14 @@ def decide_for_device(event: EarthquakeEvent, device: dict, override: dict | Non
     elif event.source in FAR_FIELD_SOURCES:
         if is_global_local_distance(distance, device) and event.magnitude >= device["min_magnitude"] and intensity >= max(2, device["min_intensity"]):
             should_push, reason = True, "global local threshold matched"
+        elif is_global_local_distance(distance, device) and event.magnitude >= device["min_magnitude"]:
+            should_push, reason = True, "local magnitude threshold matched"
         else:
             should_push, reason = False, "below threshold"
     elif distance <= device["max_distance_km"] and event.magnitude >= device["min_magnitude"] and intensity >= device["min_intensity"]:
         should_push, reason = True, "threshold matched"
+    elif distance <= device["max_distance_km"] and event.magnitude >= device["min_magnitude"]:
+        should_push, reason = True, "local magnitude threshold matched"
     elif intensity >= 2:
         should_push, reason = True, "felt intensity"
     else:

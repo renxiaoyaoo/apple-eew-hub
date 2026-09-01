@@ -205,6 +205,7 @@ export function decisionReasonLabel(reason?: string) {
     "test drill": "演练模式",
     "global major earthquake": "全球特大地震",
     "global local threshold matched": "全球源地震达到本地条件",
+    "local magnitude threshold matched": "达到震级和距离条件",
     "threshold matched": "达到设备阈值",
     "felt intensity": "预计可能有感",
     "below threshold": "未达到阈值",
@@ -226,6 +227,9 @@ export function alertReasonText(event: LatestAlert["event"], decision: NonNullab
   }
   if (decision.reason === "felt intensity") {
     return `因为 ${metrics}，系统判断可能有感，所以提醒 ${deviceName}${city}。`;
+  }
+  if (decision.reason === "local magnitude threshold matched") {
+    return `因为这场地震在设备距离范围内，且震级达到设备设置，所以提醒 ${deviceName}${city}。`;
   }
   const threshold = device
     ? `；这台设备的条件是 M${device.min_magnitude}+、${device.max_distance_km}km 内、烈度 ${device.min_intensity}+`
