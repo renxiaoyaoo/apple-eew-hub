@@ -43,6 +43,15 @@ def test_red_arrival_payload_does_not_use_call():
     assert "call" not in query
 
 
+def test_yellow_bark_payload_uses_critical_without_call():
+    _, query = bark_payload(event(magnitude=4.8), 143, 2.2, "轻微震感", 33)
+
+    assert query["level"] == "critical"
+    assert query["sound"] == "alarm"
+    assert query["volume"] == "6"
+    assert "call" not in query
+
+
 def test_blue_bark_payload_uses_active_without_custom_alarm():
     _, query = bark_payload(event(magnitude=4.6), 120, 1.5, "轻微震感", 20)
 
