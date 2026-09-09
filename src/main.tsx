@@ -1,16 +1,14 @@
 import React, { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { Circle, MapContainer, Marker, Polyline, Popup, TileLayer, useMap } from "react-leaflet";
-import L from "leaflet";
-import "leaflet/dist/leaflet.css";
 import "./styles.css";
 import { AuthError, api } from "./api";
+import { AlertCard } from "./components/AlertCard";
+import { EarthquakeMap } from "./components/EarthquakeMap";
 import {
   alertReasonText,
   barkLevelOptions,
   barkLevelText,
   canonicalLogEventId,
-  cardTitle,
   chengdu,
   coordsFor,
   decisionReasonLabel,
@@ -31,14 +29,6 @@ import {
   timeMs,
 } from "./domain";
 import type { Device, LatestAlert, Logs, PushEventGroup, Status, SystemConfig } from "./types";
-
-function FitMap({ points }: { points: [number, number][] }) {
-  const map = useMap();
-  useEffect(() => {
-    if (points.length >= 2) map.fitBounds(points, { padding: [44, 44] });
-  }, [map, points]);
-  return null;
-}
 
 function App() {
   const [routePath] = useState(() => window.location.pathname);
@@ -86,6 +76,16 @@ function App() {
   });
 
   async function refresh() {
+    const logParams = new URLSearchParams();
+    if (routePath === "/history") {
+      logParams.set("events_limit", "2000");
+      logParams.set("decisions_limit", "5000");
+    } else if (routePath === "/catalog") {
+      logParams.set("observed_limit", "2000");
+    } else if (routePath === "/pushes") {
+      logParams.set("pushes_limit", "2000");
+    }
+    const logsPath = logParams.size ? `/api/logs?${logParams}` : "/api/logs";
     const nextAlert = detailEventId
       ? api<LatestAlert>(`/api/alerts/${encodeURIComponent(detailEventId)}`)
           .then((value) => {
@@ -102,7 +102,7 @@ function App() {
       api<Status>("/api/status"),
       api<Device[]>("/api/devices"),
       nextAlert,
-      api<Logs>("/api/logs"),
+      api<Logs>(logsPath),
       api<SystemConfig>("/api/system-config"),
     ]);
     setStatus(nextStatus);
@@ -122,9 +122,10 @@ function App() {
         setMessage(error.message);
       }
     });
+    const bulkLogPage = ["/history", "/catalog", "/pushes"].includes(routePath);
     const id = window.setInterval(() => refresh().catch((error) => {
       if (error instanceof AuthError) setAuthRequired(true);
-    }), 5000);
+    }), bulkLogPage ? 30000 : 5000);
     return () => window.clearInterval(id);
   }, []);
 
@@ -172,6 +173,7 @@ function App() {
     intensity_text: selectedPreset.tag,
     should_push: true,
   };
+  const detailDecisionMissing = Boolean(detailEventId && latest.event && !selectedDecision);
   useEffect(() => {
     setAlertStartedAt(Date.now());
   }, [event.event_id, event.epicenter, event.magnitude]);
@@ -208,7 +210,11 @@ function App() {
     const key = canonicalLogEventId(item.event_id);
     return items.findIndex((candidate) => canonicalLogEventId(candidate.event_id) === key) === index;
   });
-  const decisionByEvent = new Map(logs.decisions.map((item) => [item.event_id, item]));
+  const decisionByEvent = logs.decisions.reduce((result, item) => {
+    const current = result.get(item.event_id);
+    if (!current || (!current.should_push && item.should_push)) result.set(item.event_id, item);
+    return result;
+  }, new Map<string, Logs["decisions"][number]>());
   const alertVisibleEvents = dedupedVisibleEvents.filter((item) =>
     Boolean((decisionByEvent.get(item.event_id) ?? decisionByEvent.get(canonicalLogEventId(item.event_id)))?.should_push)
   );
@@ -481,55 +487,9 @@ function App() {
     );
   }
 
-  const alertCard = (
-    <section ref={alertCardRef} className={`alertCard ${level}`}>
-      <div className="alertPattern alertPatternGrid" aria-hidden="true">
-        {Array.from({ length: 22 }, (_, index) => <span key={index} style={{ left: `${index * 42 - 180}px` }} />)}
-      </div>
-      <div className="alertPattern alertPatternTape" aria-hidden="true">
-        {Array.from({ length: 14 }, (_, index) => <span key={index} />)}
-      </div>
-      <div className="alertHead">
-        <span>{event.test ? "演练/示例" : "实时预警"}</span>
-      </div>
-      <h2>{isFarGlobalBrief ? "全球特大地震预警" : cardTitle(liveArrivalSeconds, displayCity)}</h2>
-      <strong>{isFarGlobalBrief ? `M${event.magnitude.toFixed(1)}` : liveArrivalSeconds > 0 ? `${liveArrivalSeconds} 秒` : "已到达"}</strong>
-      <div className="bigMetrics">
-        <div><span>距离</span><b>{Math.round(decision.distance_km)} km</b></div>
-        <div><span>震级</span><b>M{event.magnitude.toFixed(1)}</b></div>
-        <div><span>烈度</span><b>{decision.intensity}</b></div>
-        <div><span>震感</span><b>{decision.intensity_text}</b></div>
-        <div><span>震中</span><b>{eventEpicenterLabel}</b></div>
-        <div><span>深度</span><b>{event.depth_km} km</b></div>
-        <div><span>地震时间</span><b>{formatEventTime(event.origin_time)}</b></div>
-        <div><span>预警来源</span><b>{sourceName(event.source || "unknown")}</b></div>
-      </div>
-      {detailEventId && <div className="reasonBox"><b>为什么提醒我</b><span>{alertExplanation}</span></div>}
-      <div className="alertCredit">
-        <strong>Apple EEW Hub</strong>
-        <a href={repoUrl} target="_blank" rel="noreferrer">{repoUrl}</a>
-      </div>
-    </section>
-  );
+  const alertCard = <AlertCard ref={alertCardRef} event={event} decision={decision} level={level} displayCity={displayCity} liveArrivalSeconds={liveArrivalSeconds} epicenter={eventEpicenterLabel} farGlobal={isFarGlobalBrief} explanation={detailEventId ? alertExplanation : undefined} />;
 
-  const mapSection = (
-    <section className="mapPanel">
-      <div className="sectionHead">
-        <div>
-          <h2>震中、你的位置和地震波</h2>
-        </div>
-        <span>{activeDevice?.default_city || "成都默认位置"}</span>
-      </div>
-      <MapContainer center={userPoint} zoom={7} scrollWheelZoom={false} className="map">
-        <TileLayer attribution="&copy; OpenStreetMap" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-        <FitMap points={[epicenter, userPoint]} />
-        <Circle center={epicenter} radius={waveKm * 1000} pathOptions={{ color: level === "red" ? "#dc2626" : level === "yellow" ? "#d97706" : "#2563eb", fillOpacity: 0.08, weight: 2 }} />
-        <Polyline positions={[epicenter, userPoint]} pathOptions={{ color: "#1f2937", weight: 2, dashArray: "7 9" }} />
-        <Marker position={epicenter} icon={L.divIcon({ className: `pin epicenter pulse ${level}`, html: "<span>震</span>" })}><Popup>{eventEpicenterLabel}</Popup></Marker>
-        <Marker position={userPoint} icon={L.divIcon({ className: "pin user", html: "我" })}><Popup>{activeDevice?.default_city || "成都"}</Popup></Marker>
-      </MapContainer>
-    </section>
-  );
+  const mapSection = <EarthquakeMap epicenter={epicenter} user={userPoint} waveKm={waveKm} level={level} epicenterLabel={eventEpicenterLabel} userLabel={activeDevice?.default_city || "成都默认位置"} />;
 
   const renderPushHistorySection = (limit?: number) => (
     <section className="panel historyPanel">
@@ -663,12 +623,12 @@ function App() {
       <a href="/history">
         <b>2</b>
         <span>触发的预警</span>
-        <small>{alertVisibleEvents.length} 场，符合设备位置和阈值</small>
+        <small>{logs.counts?.triggered_events ?? alertVisibleEvents.length} 场，符合设备位置和阈值</small>
       </a>
       <a href="/pushes">
         <b>3</b>
         <span>发出的通知</span>
-        <small>{groupedPushEvents.length} 场，Bark / ntfy / Webhook 结果</small>
+        <small>{logs.counts?.notified_events ?? groupedPushEvents.length} 场，Bark / ntfy / Webhook 结果</small>
       </a>
     </section>
   );
@@ -854,6 +814,18 @@ function App() {
         <section className="panel loadingPanel">
           <h1>正在加载预警详情</h1>
           <p>请稍候。</p>
+        </section>
+      </main>
+    );
+  }
+
+  if (detailDecisionMissing) {
+    return (
+      <main className="appShell detailShell">
+        <section className="panel loadingPanel">
+          <h1>设备判断记录不可用</h1>
+          <p>地震事件仍然存在，但这条通知对应的设备判断已经被清除。</p>
+          <a className="alertBack" href="/">返回首页</a>
         </section>
       </main>
     );

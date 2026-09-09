@@ -126,6 +126,11 @@ class Database:
             conn.executescript(SCHEMA)
             self._migrate(conn)
 
+    def backup(self, target: Path) -> None:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        with self.connect() as source, sqlite3.connect(target) as destination:
+            source.backup(destination)
+
     def _migrate(self, conn: sqlite3.Connection) -> None:
         device_columns = {row["name"] for row in conn.execute("PRAGMA table_info(devices)").fetchall()}
         if "push_url" not in device_columns:

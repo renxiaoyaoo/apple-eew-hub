@@ -58,6 +58,8 @@ export type Logs = {
     events: number;
     decisions: number;
     pushes: number;
+    triggered_events: number;
+    notified_events: number;
     observed_events: number;
     observed_recorded: number;
   };

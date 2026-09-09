@@ -58,7 +58,7 @@ def test_test_drill_pushes_even_below_threshold():
 
 def test_global_major_earthquake_pushes_gently_when_far_away():
     decision = decide_for_device(
-        event(test=False, magnitude=8.2, latitude=-38.2, longitude=-73.1),
+        event(test=False, source="emsc_global", magnitude=8.2, latitude=-38.2, longitude=-73.1),
         device(),
     )
     assert decision.should_push is True
@@ -370,3 +370,54 @@ def test_process_event_does_not_schedule_duplicate_arrival_tasks(tmp_path, monke
     assert captured[2].cancelled is False
     rows = db.query("SELECT push_phase FROM pushes ORDER BY id")
     assert [row["push_phase"] for row in rows] == ["initial"]
+
+
+def test_cancel_report_cancels_pending_arrival(tmp_path, monkeypatch):
+    captured = []
+
+    class FakeTask:
+        def __init__(self, coro):
+            self.cancelled = False
+            coro.close()
+
+        def done(self):
+            return False
+
+        def cancel(self):
+            self.cancelled = True
+
+    def fake_create(coro):
+        task = FakeTask(coro)
+        captured.append(task)
+        return task
+
+    monkeypatch.setattr("app.core._create_background_task", fake_create)
+    db = Database(tmp_path / "eew.sqlite3")
+    db.init()
+    db.execute(
+        """
+        INSERT INTO devices
+        (name, push_type, bark_key, push_url, default_city, latitude, longitude,
+         min_magnitude, max_distance_km, min_intensity, enabled, receive_tests, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        ("iPhone", "bark", "fake-key", "", "成都", 30.58, 103.92, 4.5, 500, 2, 1, 1, "now", "now"),
+    )
+    try:
+        anyio.run(process_event, db, event(event_id="cancel-event", report_num=1), {"distance_km": 199, "countdown_seconds": 120, "intensity": 3})
+        arrival_task = ARRIVAL_TASKS[("cancel-event", 1)]
+        anyio.run(process_event, db, event(event_id="cancel-event", report_num=2, is_cancel=True), {"distance_km": 199, "countdown_seconds": 90, "intensity": 3})
+        assert arrival_task.cancelled is True
+        assert ("cancel-event", 1) not in ARRIVAL_TASKS
+    finally:
+        ARRIVAL_TASKS.clear()
+
+
+def test_global_event_within_1000km_is_not_reclassified_by_device_radius():
+    decision = decide_for_device(
+        event(test=False, source="emsc_global", magnitude=7.2, latitude=31.3, longitude=104.0),
+        device(max_distance_km=50),
+    )
+
+    assert 50 < decision.distance_km < 1000
+    assert decision.intensity > 1

@@ -1,27 +1,52 @@
 from __future__ import annotations
 
 import json
-import shutil
+import secrets
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from .config import default_system_config, get_system_config, set_system_config, settings
-from .core import normalize_device, process_event, public_device, restore_scheduled_arrival_pushes
+from .core import (
+    cancel_all_arrival_pushes,
+    cancel_device_arrival_pushes,
+    normalize_device,
+    process_event,
+    public_device,
+    restore_scheduled_arrival_pushes,
+)
 from .db import Database
 from .global_quakes import GlobalQuakeListener
 from .models import Decision, DeviceIn, DevicePatch, EarthquakeEvent, LocationUpdate, SimulationIn, SystemConfigPatch, TestPushIn, utc_now
 from .push import dispatch_push
 from .wolfx import WolfxListener
 
-app = FastAPI(title=settings.app_name)
 db = Database(settings.db_path)
 listener = WolfxListener(db)
 global_listener = GlobalQuakeListener(db)
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    db.init()
+    set_system_config(db.get_state("system_config", default_system_config()))
+    restore_scheduled_arrival_pushes(db)
+    listener.start()
+    global_listener.start()
+    try:
+        yield
+    finally:
+        cancel_all_arrival_pushes()
+        await listener.stop()
+        await global_listener.stop()
+
+
+app = FastAPI(title=settings.app_name, lifespan=lifespan)
 
 PUBLIC_PATHS = {
     "/api/health",
@@ -34,28 +59,13 @@ async def security_and_auth(request: Request, call_next):
     if settings.auth_token and path.startswith("/api/") and path not in PUBLIC_PATHS:
         auth = request.headers.get("authorization", "")
         token = auth.removeprefix("Bearer ").strip()
-        if token != settings.auth_token:
+        if not secrets.compare_digest(token, settings.auth_token):
             return JSONResponse({"detail": "unauthorized"}, status_code=401)
     response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["Referrer-Policy"] = "no-referrer"
     response.headers["X-Frame-Options"] = "SAMEORIGIN"
     return response
-
-
-@app.on_event("startup")
-async def startup() -> None:
-    db.init()
-    set_system_config(db.get_state("system_config", default_system_config()))
-    restore_scheduled_arrival_pushes(db)
-    listener.start()
-    global_listener.start()
-
-
-@app.on_event("shutdown")
-async def shutdown() -> None:
-    await listener.stop()
-    await global_listener.stop()
 
 
 PUBLIC_DIR = Path(__file__).resolve().parent.parent / "public"
@@ -140,7 +150,21 @@ async def status() -> dict:
 @app.get("/api/health")
 async def health() -> dict:
     db.one("SELECT 1 AS ok")
-    return {"ok": True, "time": utc_now()}
+    wolfx_state = db.get_state("listener", {"connected": False, "sources": {}})
+    global_state = db.get_state("global_listener", {"connected": False, "sources": {}})
+    sources = {**(wolfx_state.get("sources") or {}), **(global_state.get("sources") or {})}
+    return {
+        "ok": True,
+        "ready": any(item.get("connected") for item in sources.values()),
+        "time": utc_now(),
+        "sources": {
+            name: {
+                "connected": bool(item.get("connected")),
+                "last_message_at": item.get("last_message_at"),
+            }
+            for name, item in sources.items()
+        },
+    }
 
 
 @app.get("/api/system-config")
@@ -216,11 +240,15 @@ async def patch_device(device_id: int, payload: DevicePatch) -> dict:
     params.append(utc_now())
     params.append(device_id)
     db.execute(f"UPDATE devices SET {', '.join(assignments)} WHERE id = ?", params)
+    arrival_sensitive_fields = {"latitude", "longitude", "min_magnitude", "max_distance_km", "min_intensity", "enabled", "receive_tests"}
+    if arrival_sensitive_fields.intersection(values):
+        cancel_device_arrival_pushes(device_id)
     return public_device(db.one("SELECT * FROM devices WHERE id = ?", (device_id,)))
 
 
 @app.delete("/api/devices/{device_id}")
 async def delete_device(device_id: int) -> dict:
+    cancel_device_arrival_pushes(device_id)
     db.execute("DELETE FROM devices WHERE id = ?", (device_id,))
     return {"ok": True}
 
@@ -289,6 +317,15 @@ async def test_push(payload: TestPushIn) -> dict:
     result = await dispatch_push(device, event, decision, repeat_override=1)
     db.execute(
         """
+        INSERT INTO decisions
+        (event_id, device_id, distance_km, arrival_seconds, intensity, intensity_text,
+         status, should_push, reason, pushed, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (event.event_id, device["id"], 0, 18, 2, "轻微震感", "pending", 1, "test push", int(result["ok"]), now),
+    )
+    db.execute(
+        """
         INSERT INTO pushes
         (event_id, device_id, push_phase, channel, ok, status_code, latency_ms, message, created_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -338,7 +375,7 @@ async def alert_by_id(event_id: str) -> dict:
         SELECT d.device_id, devices.name AS device_name, d.distance_km, d.arrival_seconds,
                d.intensity, d.intensity_text, d.status, d.should_push, d.reason, d.created_at
         FROM decisions d
-        JOIN devices ON devices.id = d.device_id
+        LEFT JOIN devices ON devices.id = d.device_id
         WHERE d.event_id = ?
         ORDER BY d.id DESC
         """,
@@ -356,17 +393,35 @@ async def alert_by_id(event_id: str) -> dict:
             "origin_time": event["origin_time"],
             "test": bool(event["test"]),
         },
-        "decisions": [{**item, "should_push": bool(item["should_push"])} for item in decisions],
+        "decisions": [
+            {**item, "device_name": item["device_name"] or "已删除的 Apple 设备", "should_push": bool(item["should_push"])}
+            for item in decisions
+        ],
     }
 
 
 @app.get("/api/logs")
-async def logs() -> dict:
+async def logs(
+    events_limit: int = Query(100, ge=0, le=settings.max_events),
+    decisions_limit: int = Query(200, ge=0, le=settings.max_decisions),
+    pushes_limit: int = Query(200, ge=0, le=settings.max_pushes),
+    observed_limit: int = Query(300, ge=0, le=settings.max_events),
+) -> dict:
     return {
         "counts": {
             "events": db.one("SELECT COUNT(*) AS c FROM events")["c"],
             "decisions": db.one("SELECT COUNT(*) AS c FROM decisions")["c"],
             "pushes": db.one("SELECT COUNT(*) AS c FROM pushes")["c"],
+            "triggered_events": db.one(
+                """
+                SELECT COUNT(DISTINCT d.event_id) AS c FROM decisions d
+                WHERE d.should_push = 1 AND d.id = (
+                  SELECT MAX(latest.id) FROM decisions latest
+                  WHERE latest.event_id = d.event_id AND latest.device_id = d.device_id
+                )
+                """
+            )["c"],
+            "notified_events": db.one("SELECT COUNT(DISTINCT event_id) AS c FROM pushes")["c"],
             "observed_events": db.one("SELECT COUNT(*) AS c FROM observed_events")["c"],
             "observed_recorded": db.one("SELECT COUNT(*) AS c FROM observed_events WHERE recorded = 1")["c"],
         },
@@ -377,10 +432,21 @@ async def logs() -> dict:
                    created_at, updated_at
             FROM events
             ORDER BY updated_at DESC
-            LIMIT 100
-            """
+            LIMIT ?
+            """,
+            (events_limit,),
         ),
-        "decisions": db.query("SELECT * FROM decisions ORDER BY id DESC LIMIT 200"),
+        "decisions": db.query(
+            """
+            SELECT d.* FROM decisions d
+            WHERE d.id = (
+              SELECT MAX(latest.id) FROM decisions latest
+              WHERE latest.event_id = d.event_id AND latest.device_id = d.device_id
+            )
+            ORDER BY d.id DESC LIMIT ?
+            """,
+            (decisions_limit,),
+        ),
         "pushes": db.query(
             """
             SELECT p.id, p.event_id, p.device_id, devices.name AS device_name,
@@ -390,8 +456,9 @@ async def logs() -> dict:
             LEFT JOIN devices ON devices.id = p.device_id
             LEFT JOIN events ON events.event_id = p.event_id
             ORDER BY p.id DESC
-            LIMIT 200
-            """
+            LIMIT ?
+            """,
+            (pushes_limit,),
         ),
         "observed_events": db.query(
             """
@@ -399,8 +466,9 @@ async def logs() -> dict:
                    origin_time, recorded, reason, created_at, updated_at
             FROM observed_events
             ORDER BY updated_at DESC
-            LIMIT 300
-            """
+            LIMIT ?
+            """,
+            (observed_limit,),
         ),
     }
 
@@ -437,7 +505,7 @@ async def backup() -> dict:
     backup_dir = settings.data_dir / "backups"
     backup_dir.mkdir(parents=True, exist_ok=True)
     target = backup_dir / f"eew-hub-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}.sqlite3"
-    shutil.copy2(settings.db_path, target)
+    db.backup(target)
     return {"ok": True, "path": str(target)}
 
 
@@ -447,11 +515,13 @@ async def export_config() -> dict:
     return {
         "version": 1,
         "exported_at": utc_now(),
+        "secrets_included": False,
+        "note": "推送凭据不会写入配置导出；完整恢复请使用 SQLite 备份。",
         "devices": [
             {
                 key: value
                 for key, value in device.items()
-                if key not in {"id", "created_at", "updated_at"}
+                if key not in {"id", "created_at", "updated_at", "bark_key", "push_url"}
             }
             for device in devices
         ],
@@ -463,11 +533,24 @@ async def import_config(payload: dict) -> dict:
     devices = payload.get("devices")
     if not isinstance(devices, list):
         raise HTTPException(400, "devices must be a list")
+    validated = [DeviceIn(**item) for item in devices]
     backup_result = await backup()
-    db.execute("DELETE FROM devices")
-    imported = 0
-    for item in devices:
-        device = DeviceIn(**item)
-        await create_device(device)
-        imported += 1
-    return {"ok": True, "imported": imported, "backup": backup_result["path"]}
+    cancel_all_arrival_pushes()
+    now = utc_now()
+    with db.transaction() as conn:
+        conn.execute("DELETE FROM devices")
+        for device in validated:
+            conn.execute(
+                """
+                INSERT INTO devices
+                (name, push_type, bark_key, push_url, default_city, latitude, longitude, min_magnitude,
+                 max_distance_km, min_intensity, enabled, receive_tests, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    device.name, device.push_type, device.bark_key, device.push_url, device.default_city,
+                    device.latitude, device.longitude, device.min_magnitude, device.max_distance_km,
+                    device.min_intensity, int(device.enabled), int(device.receive_tests), now, now,
+                ),
+            )
+    return {"ok": True, "imported": len(validated), "backup": backup_result["path"]}

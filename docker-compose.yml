@@ -7,7 +7,7 @@ services:
       bark-server:
         condition: service_started
     ports:
-      - "${EEW_HUB_PORT:-18761}:18761"
+      - "${EEW_BIND_ADDRESS:-127.0.0.1}:${EEW_HUB_PORT:-18761}:18761"
     environment:
       WOLFX_WS_URL: ${WOLFX_WS_URL:-}
       WOLFX_WS_BASE: ${WOLFX_WS_BASE:-wss://ws-api.wolfx.jp}
@@ -45,17 +45,17 @@ services:
       - ./data:/data
 
   bark-server:
-    image: ghcr.io/finb/bark-server:latest
+    image: ghcr.io/finb/bark-server:v2.3.5
     container_name: apple-eew-bark
     restart: unless-stopped
     command: ["bark-server", "--addr", "0.0.0.0:18762", "--data", "/data"]
     ports:
-      - "${BARK_HOST_PORT:-18762}:18762"
+      - "${BARK_BIND_ADDRESS:-127.0.0.1}:${BARK_HOST_PORT:-18762}:18762"
     volumes:
       - ./bark-data:/data
 
   cloudflared:
-    image: cloudflare/cloudflared:latest
+    image: cloudflare/cloudflared:2026.5.0
     container_name: apple-eew-cloudflared
     restart: unless-stopped
     profiles:

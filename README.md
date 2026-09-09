@@ -24,14 +24,18 @@ docker compose up -d --build
 
 打开：
 
-- 管理页：`http://服务器IP:18761/`
-- Bark Server：`http://服务器IP:18762/`
+- 管理页：`http://127.0.0.1:18761/`
+- Bark Server：`http://127.0.0.1:18762/`
 
 详细步骤见 [QUICKSTART.md](./QUICKSTART.md)。
 
 ## 公网访问和认证
 
 默认适合在家庭内网使用。管理页和 Bark Server 如果要暴露到公网，推荐放在 Cloudflare Access、反向代理登录或 VPN 后面。
+
+Docker 默认只监听宿主机本地地址。需要从可信局域网直接访问时，在 `.env` 中将 `EEW_BIND_ADDRESS` 和 `BARK_BIND_ADDRESS` 设为 `0.0.0.0`。
+
+网页导出的配置不包含 Bark Key、ntfy 地址或 Webhook 地址。完整备份和恢复请使用系统生成的 SQLite 备份。
 
 `EEW_AUTH_TOKEN` 是内置 API 口令兜底：设置后，网页会要求输入口令，除 `/api/health` 外的 API 都需要 Bearer Token。它不是完整账号系统，也不替代 Cloudflare Access。
 
@@ -91,6 +95,7 @@ python3 scripts/privacy_check.py
 
 ```bash
 npm run build
+npm run typecheck
 python3 -m py_compile app/*.py scripts/privacy_check.py tests/*.py
 docker compose run --rm -v "$PWD:/src" --entrypoint sh eew-hub \
   -c "cd /src && pip install -r requirements-dev.txt && PYTHONPATH=/src pytest"

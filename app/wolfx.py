@@ -10,7 +10,7 @@ from typing import Any
 from .config import get_system_config, settings
 from .core import process_event
 from .db import Database
-from .models import EarthquakeEvent
+from .models import EarthquakeEvent, utc_now
 from .simple_ws import SimpleWebSocket
 
 LOGGER = logging.getLogger(__name__)
@@ -130,7 +130,7 @@ class WolfxListener:
 
     def _set_source_state(self, source: str, state: dict) -> None:
         current = self.db.get_state("listener_sources", {})
-        current[source] = state
+        current[source] = {**current.get(source, {}), **state}
         connected = any(item.get("connected") for item in current.values())
         self.db.set_state("listener_sources", current)
         self.db.set_state(
@@ -153,12 +153,17 @@ class WolfxListener:
                     async for message in ws:
                         try:
                             data = json.loads(message)
-                        except json.JSONDecodeError:
+                            event = normalize_wolfx_message(data, source_hint=source)
+                            if event:
+                                self._set_source_state(
+                                    source,
+                                    {"connected": True, "message": "connected", "url": url, "last_message_at": utc_now()},
+                                )
+                                self.db.record_observed_event(event, True, "国内预警源")
+                                await process_event(self.db, event)
+                        except (json.JSONDecodeError, TypeError, ValueError) as exc:
+                            LOGGER.warning("Ignored invalid Wolfx message for %s: %s", source, exc)
                             continue
-                        event = normalize_wolfx_message(data, source_hint=source)
-                        if event:
-                            self.db.record_observed_event(event, True, "国内预警源")
-                            await process_event(self.db, event)
             except asyncio.CancelledError:
                 raise
             except Exception as exc:

@@ -87,7 +87,11 @@ class SimpleWebSocket:
     async def recv(self) -> str | None:
         while True:
             reader = self._reader()
-            first = await reader.readexactly(2)
+            try:
+                first = await asyncio.wait_for(reader.readexactly(2), timeout=90)
+            except TimeoutError:
+                await self._send_frame(9, b"keepalive")
+                first = await asyncio.wait_for(reader.readexactly(2), timeout=15)
             opcode = first[0] & 0x0F
             masked = bool(first[1] & 0x80)
             length = first[1] & 0x7F
@@ -95,6 +99,8 @@ class SimpleWebSocket:
                 length = int.from_bytes(await reader.readexactly(2), "big")
             elif length == 127:
                 length = int.from_bytes(await reader.readexactly(8), "big")
+            if length > 8 * 1024 * 1024:
+                raise ConnectionError("websocket frame exceeds 8 MiB")
             mask = await reader.readexactly(4) if masked else b""
             payload = await reader.readexactly(length) if length else b""
             if masked:

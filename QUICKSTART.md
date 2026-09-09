@@ -18,7 +18,7 @@ curl http://127.0.0.1:18761/api/health
 打开管理页：
 
 ```text
-http://服务器IP:18761/
+http://127.0.0.1:18761/
 ```
 
 ## 2. 添加 Apple 设备
@@ -26,7 +26,7 @@ http://服务器IP:18761/
 推荐使用 Bark：
 
 1. Bark App 的服务器填你的自建 Bark Server 地址。
-2. 局域网地址通常是 `http://服务器IP:18762`。
+2. 本机地址是 `http://127.0.0.1:18762`；通过 Cloudflare Tunnel 使用时填写 Bark 的公网域名。
 3. 有公网时可以填 `https://bark.example.com`。
 4. 在 Bark App 里复制 Key。
 5. 回到管理页，保存 Apple 设备。
@@ -82,6 +82,13 @@ GLOBAL_FAR_ALERT_ENABLED=1
 只在家里用，不需要公网。
 
 如果要在外面访问管理页或让 Bark App 访问自建 Bark Server，可以用 Cloudflare Tunnel、frp 或反向代理。
+
+默认端口只绑定 `127.0.0.1`。需要让可信局域网设备直接连接时，在 `.env` 中设置：
+
+```env
+EEW_BIND_ADDRESS=0.0.0.0
+BARK_BIND_ADDRESS=0.0.0.0
+```
 
 推荐做法：
 

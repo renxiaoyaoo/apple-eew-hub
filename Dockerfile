@@ -3,7 +3,7 @@ FROM node:22-slim AS frontend
 WORKDIR /src
 COPY package.json package-lock.json* tsconfig.json vite.config.ts index.html ./
 COPY src ./src
-RUN npm install && npm run build
+RUN npm ci && npm run build
 
 FROM python:3.12-slim
 

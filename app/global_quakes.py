@@ -9,7 +9,7 @@ from typing import Any
 from .config import get_system_config, settings
 from .core import decide_for_device, is_global_local_distance, normalize_device, process_event
 from .db import Database
-from .models import EarthquakeEvent
+from .models import EarthquakeEvent, utc_now
 from .simple_ws import SimpleWebSocket
 
 LOGGER = logging.getLogger(__name__)
@@ -126,18 +126,23 @@ class GlobalQuakeListener:
                 pass
         self.task = None
 
-    def _set_state(self, connected: bool, message: str) -> None:
+    def _set_state(self, connected: bool, message: str, last_message_at: str | None = None) -> None:
+        previous = self.db.get_state("global_listener", {}).get("sources", {}).get("emsc_global", {})
+        source_state = {
+            **previous,
+            "connected": connected,
+            "message": message,
+            "url": get_system_config()["global_source_url"],
+        }
+        if last_message_at:
+            source_state["last_message_at"] = last_message_at
         self.db.set_state(
             "global_listener",
             {
                 "connected": connected,
                 "message": message,
                 "sources": {
-                    "emsc_global": {
-                        "connected": connected,
-                        "message": message,
-                        "url": get_system_config()["global_source_url"],
-                    }
+                    "emsc_global": source_state
                 },
             },
         )
@@ -160,12 +165,14 @@ class GlobalQuakeListener:
             async for raw_message in ws:
                 try:
                     message = json.loads(raw_message)
-                except json.JSONDecodeError:
+                    event = normalize_emsc_message(message)
+                    if event:
+                        self._set_state(True, "connected", last_message_at=utc_now())
+                        should_record = should_record_global_event(self.db, event)
+                        self.db.record_observed_event(event, should_record, global_record_reason(self.db, event))
+                        self.db.prune_observed_events(settings.max_events)
+                        if should_record:
+                            await process_event(self.db, event)
+                except (json.JSONDecodeError, TypeError, ValueError) as exc:
+                    LOGGER.warning("Ignored invalid global quake message: %s", exc)
                     continue
-                event = normalize_emsc_message(message)
-                if event:
-                    should_record = should_record_global_event(self.db, event)
-                    self.db.record_observed_event(event, should_record, global_record_reason(self.db, event))
-                    self.db.prune_observed_events(settings.max_events)
-                    if should_record:
-                        await process_event(self.db, event)

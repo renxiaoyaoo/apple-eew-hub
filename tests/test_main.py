@@ -1,0 +1,60 @@
+import anyio
+
+from app.db import Database
+from app.main import export_config, logs
+
+
+def test_logs_return_only_latest_decision_per_device(tmp_path, monkeypatch):
+    database = Database(tmp_path / "eew.sqlite3")
+    database.init()
+    monkeypatch.setattr("app.main.db", database)
+    database.execute(
+        """
+        INSERT INTO events
+        (event_id, source, report_num, is_final, is_cancel, epicenter, latitude, longitude,
+         magnitude, depth_km, origin_time, raw_json, test, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        ("event-1", "cenc_eew", 2, 0, 0, "测试震中", 30, 104, 5, 10, "2026-09-09T00:00:00+00:00", "{}", 0, "now", "now"),
+    )
+    for should_push in (0, 1):
+        database.execute(
+            """
+            INSERT INTO decisions
+            (event_id, device_id, distance_km, arrival_seconds, intensity, intensity_text,
+             status, should_push, reason, pushed, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            ("event-1", 1, 100, 10, 2, "轻微震感", "pending", should_push, "test", 0, "now"),
+        )
+
+    result = anyio.run(logs, 100, 200, 200, 300)
+
+    assert len(result["decisions"]) == 1
+    assert result["decisions"][0]["should_push"] == 1
+    assert result["counts"]["triggered_events"] == 1
+
+
+def test_config_export_excludes_push_credentials(tmp_path, monkeypatch):
+    database = Database(tmp_path / "eew.sqlite3")
+    database.init()
+    monkeypatch.setattr("app.main.db", database)
+    database.execute(
+        """
+        INSERT INTO devices
+        (name, push_type, bark_key, push_url, default_city, latitude, longitude,
+         min_magnitude, max_distance_km, min_intensity, enabled, receive_tests,
+         created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            "测试设备", "bark", "public-test-key", "https://push.example.test/topic",
+            "成都", 30.57, 104.06, 4.5, 500, 2, 1, 1, "now", "now",
+        ),
+    )
+
+    result = anyio.run(export_config)
+
+    assert result["secrets_included"] is False
+    assert "bark_key" not in result["devices"][0]
+    assert "push_url" not in result["devices"][0]

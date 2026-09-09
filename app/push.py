@@ -11,10 +11,15 @@ from .models import Decision, EarthquakeEvent
 
 PUSH_ICON_URL = "https://cdn-icons-png.flaticon.com/512/12688/12688039.png"
 FAR_FIELD_SOURCES = {"emsc_global", "jma_eew"}
+GLOBAL_LOCAL_MAX_DISTANCE_KM = 1000
 
 
-def is_far_global(event: EarthquakeEvent, intensity: float) -> bool:
-    return event.source in FAR_FIELD_SOURCES and intensity <= 1
+def is_far_global(event: EarthquakeEvent, intensity: float, distance_km: float | None = None) -> bool:
+    if event.source not in FAR_FIELD_SOURCES:
+        return False
+    if distance_km is not None:
+        return distance_km > GLOBAL_LOCAL_MAX_DISTANCE_KM
+    return intensity <= 1
 
 
 def place_text(event: EarthquakeEvent) -> str:
@@ -96,10 +101,10 @@ def bark_repeat(intensity: float) -> tuple[int, float]:
     return int(config[f"bark_{tier}_repeat"]), float(config[f"bark_{tier}_repeat_gap_seconds"])
 
 
-def bark_title(event: EarthquakeEvent, intensity: float, arrival_seconds: int) -> str:
+def bark_title(event: EarthquakeEvent, intensity: float, arrival_seconds: int, distance_km: float | None = None) -> str:
     tier = bark_tier(intensity)
     prefix = "演练：" if event.test and event.source != "test" else ""
-    if is_far_global(event, intensity):
+    if is_far_global(event, intensity, distance_km):
         return f"{prefix}{global_title(event)}"
     if tier == "red":
         return f"{prefix}强震预警：{arrival_seconds}秒后到达" if arrival_seconds > 0 else f"{prefix}强震预警：横波已到达"
@@ -120,9 +125,9 @@ def bark_payload(
     arrival_seconds: int,
     device_id: int | None = None,
 ) -> tuple[str, dict[str, str]]:
-    far_global = is_far_global(event, intensity)
+    far_global = is_far_global(event, intensity, distance_km)
     tier = global_tier(event) if far_global else bark_tier(intensity)
-    title = bark_title(event, intensity, arrival_seconds)
+    title = bark_title(event, intensity, arrival_seconds, distance_km)
     if far_global:
         body = global_body(event, distance_km)
     else:
@@ -193,7 +198,7 @@ async def send_bark(
 
 def push_text(event: EarthquakeEvent, decision: Decision) -> tuple[str, str]:
     prefix = "演练：" if event.test and event.source != "test" else ""
-    if is_far_global(event, decision.intensity):
+    if is_far_global(event, decision.intensity, decision.distance_km):
         body = global_body(event, decision.distance_km)
         if event.test and event.source != "test":
             body = f"【演练】{body}"
@@ -209,7 +214,7 @@ def push_text(event: EarthquakeEvent, decision: Decision) -> tuple[str, str]:
 
 
 def ntfy_priority(event: EarthquakeEvent, decision: Decision) -> str:
-    if is_far_global(event, decision.intensity):
+    if is_far_global(event, decision.intensity, decision.distance_km):
         return "min"
     return "urgent"
 

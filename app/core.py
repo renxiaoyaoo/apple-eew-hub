@@ -20,7 +20,7 @@ ARRIVAL_TASKS: dict[tuple[str, int], asyncio.Task] = {}
 
 
 def is_global_local_distance(distance_km: float, device: dict) -> bool:
-    return distance_km <= min(float(device["max_distance_km"]), GLOBAL_LOCAL_MAX_DISTANCE_KM)
+    return distance_km <= GLOBAL_LOCAL_MAX_DISTANCE_KM
 
 
 def is_far_field_event(event: EarthquakeEvent, distance_km: float, device: dict) -> bool:
@@ -145,6 +145,24 @@ def _has_push_conn(conn, event_id: str, device_id: int, phase: str) -> bool:
     )
 
 
+def cancel_arrival_push(event_id: str, device_id: int) -> bool:
+    task = ARRIVAL_TASKS.pop((event_id, int(device_id)), None)
+    if not task or task.done():
+        return False
+    task.cancel()
+    return True
+
+
+def cancel_device_arrival_pushes(device_id: int) -> int:
+    keys = [key for key in ARRIVAL_TASKS if key[1] == int(device_id)]
+    return sum(cancel_arrival_push(event_id, current_device_id) for event_id, current_device_id in keys)
+
+
+def cancel_all_arrival_pushes() -> int:
+    keys = list(ARRIVAL_TASKS)
+    return sum(cancel_arrival_push(event_id, device_id) for event_id, device_id in keys)
+
+
 def _should_schedule_arrival(event: EarthquakeEvent, decision: Decision) -> bool:
     if event.source in FAR_FIELD_SOURCES and decision.intensity <= 1:
         return False
@@ -157,9 +175,19 @@ async def _dispatch_arrival_push_later(db: Database, device: dict, event: Earthq
         await asyncio.sleep(decision.arrival_seconds)
         if _has_push(db, event.event_id, device["id"], "arrival"):
             return
+        current_event = db.one("SELECT is_cancel FROM events WHERE event_id = ?", (event.event_id,))
+        current_device = db.one("SELECT * FROM devices WHERE id = ?", (device["id"],))
+        current_decision = db.one(
+            "SELECT should_push FROM decisions WHERE event_id = ? AND device_id = ? ORDER BY id DESC LIMIT 1",
+            (event.event_id, device["id"]),
+        )
+        if not current_event or current_event["is_cancel"] or not current_device or not current_device["enabled"]:
+            return
+        if not current_decision or not current_decision["should_push"]:
+            return
         arrival_decision = decision.model_copy(update={"arrival_seconds": 0, "status": "arrived"})
         push_id = _insert_pending_push(db, event.event_id, device, "arrival")
-        await _dispatch_and_update_push(db, push_id, device, event, arrival_decision)
+        await _dispatch_and_update_push(db, push_id, normalize_device(current_device), event, arrival_decision)
     finally:
         if ARRIVAL_TASKS.get(key) is asyncio.current_task():
             ARRIVAL_TASKS.pop(key, None)
@@ -211,8 +239,6 @@ def decide_for_device(event: EarthquakeEvent, device: dict, override: dict | Non
         intensity = estimate_intensity(event.magnitude, distance, event.depth_km)
         if is_far_field_event(event, distance, device):
             intensity = min(intensity, 1)
-        elif distance > device["max_distance_km"] and event.magnitude >= global_major_magnitude:
-            intensity = min(intensity, 1)
     text = intensity_text(intensity)
     status = wave_status(arrival)
     if event.is_cancel:
@@ -230,10 +256,14 @@ def decide_for_device(event: EarthquakeEvent, device: dict, override: dict | Non
     elif event.magnitude >= global_major_magnitude:
         should_push, reason = True, "global major earthquake"
     elif event.source in FAR_FIELD_SOURCES:
-        if is_global_local_distance(distance, device) and event.magnitude >= device["min_magnitude"] and intensity >= max(2, device["min_intensity"]):
+        if is_far_field_event(event, distance, device):
+            should_push, reason = False, "below threshold"
+        elif distance <= device["max_distance_km"] and event.magnitude >= device["min_magnitude"] and intensity >= device["min_intensity"]:
             should_push, reason = True, "global local threshold matched"
-        elif is_global_local_distance(distance, device) and event.magnitude >= device["min_magnitude"]:
+        elif distance <= device["max_distance_km"] and event.magnitude >= device["min_magnitude"]:
             should_push, reason = True, "local magnitude threshold matched"
+        elif is_global_local_distance(distance, device) and intensity >= 2:
+            should_push, reason = True, "felt intensity"
         else:
             should_push, reason = False, "below threshold"
     elif distance <= device["max_distance_km"] and event.magnitude >= device["min_magnitude"] and intensity >= device["min_intensity"]:
@@ -340,6 +370,8 @@ async def process_event(db: Database, event: EarthquakeEvent, override: dict | N
                     dispatches.append((push_id, device, decision))
                 if _should_schedule_arrival(event, decision) and not _has_push_conn(conn, event.event_id, device["id"], "arrival"):
                     arrivals.append((device, decision))
+            if not decision.should_push or not _should_schedule_arrival(event, decision):
+                cancel_arrival_push(event.event_id, device["id"])
         latest_alert = {"event": event.model_dump(), "decisions": [d.model_dump() for d in decisions]}
         conn.execute(
             """
@@ -387,7 +419,10 @@ def restore_scheduled_arrival_pushes(db: Database) -> int:
         FROM decisions d
         JOIN devices ON devices.id = d.device_id
         JOIN events ON events.event_id = d.event_id
-        WHERE d.should_push = 1
+        WHERE d.id = (
+          SELECT MAX(latest.id) FROM decisions latest
+          WHERE latest.event_id = d.event_id AND latest.device_id = d.device_id
+        )
         ORDER BY d.id DESC
         LIMIT ?
         """,
@@ -400,6 +435,8 @@ def restore_scheduled_arrival_pushes(db: Database) -> int:
         if key in seen:
             continue
         seen.add(key)
+        if not row["should_push"] or row["is_cancel"] or not row["enabled"]:
+            continue
         if _has_push(db, row["event_id"], row["device_id"], "arrival"):
             continue
         remaining = int(row["arrival_seconds"]) - _elapsed_seconds(row["created_at"])
