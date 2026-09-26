@@ -123,7 +123,7 @@ class SourceHealthMonitor:
                 "notified": notified,
                 "last_attempt_at": state.get("last_attempt_at"),
             }
-            if elapsed >= config["source_health_alert_after_seconds"] and not notified and retry_due:
+            if elapsed >= config["source_health_alert_after_minutes"] * 60 and not notified and retry_due:
                 names = "、".join(SOURCE_NAMES.get(name, name) for name in disconnected)
                 minutes = max(1, round(elapsed / 60))
                 title = "地震实时源异常"

@@ -36,7 +36,8 @@ source_health_monitor = SourceHealthMonitor(db)
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     db.init()
-    set_system_config(db.get_state("system_config", default_system_config()))
+    config = set_system_config(db.get_state("system_config", default_system_config()))
+    db.set_state("system_config", config)
     restore_scheduled_arrival_pushes(db)
     listener.start()
     global_listener.start()

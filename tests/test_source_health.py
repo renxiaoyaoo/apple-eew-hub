@@ -20,6 +20,19 @@ def insert_device(db: Database) -> None:
     )
 
 
+def test_legacy_seconds_setting_is_migrated_to_minutes():
+    legacy = default_system_config()
+    legacy.pop("source_health_alert_after_minutes")
+    legacy["source_health_alert_after_seconds"] = 3600
+
+    try:
+        config = set_system_config(legacy)
+        assert config["source_health_alert_after_minutes"] == 60
+        assert "source_health_alert_after_seconds" not in config
+    finally:
+        set_system_config(default_system_config())
+
+
 @pytest.mark.anyio
 async def test_source_outage_alerts_once_and_sends_recovery(tmp_path, monkeypatch):
     db = Database(tmp_path / "eew.sqlite3")
@@ -38,7 +51,7 @@ async def test_source_outage_alerts_once_and_sends_recovery(tmp_path, monkeypatc
             "wolfx_sources": ["sc_eew"],
             "global_enabled": False,
             "source_health_alert_enabled": True,
-            "source_health_alert_after_seconds": 30,
+            "source_health_alert_after_minutes": 1,
         }
     )
     monitor = SourceHealthMonitor(db)
@@ -47,14 +60,14 @@ async def test_source_outage_alerts_once_and_sends_recovery(tmp_path, monkeypatc
 
     try:
         await monitor.check_once(started)
-        await monitor.check_once(started + timedelta(seconds=31))
-        await monitor.check_once(started + timedelta(seconds=60))
+        await monitor.check_once(started + timedelta(seconds=61))
+        await monitor.check_once(started + timedelta(seconds=90))
         assert len(sent) == 1
         assert sent[0][0] == "地震实时源异常"
         assert sent[0][2] is False
 
         db.set_state("listener", {"sources": {"sc_eew": {"connected": True}}})
-        await monitor.check_once(started + timedelta(seconds=61))
+        await monitor.check_once(started + timedelta(seconds=91))
         assert len(sent) == 2
         assert sent[1][0] == "地震实时源已恢复"
         assert sent[1][2] is True

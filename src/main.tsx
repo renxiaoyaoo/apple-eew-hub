@@ -435,7 +435,7 @@ function App() {
       body: JSON.stringify({
         ...systemConfig,
         global_min_magnitude: Number(systemConfig.global_min_magnitude),
-        source_health_alert_after_seconds: Number(systemConfig.source_health_alert_after_seconds),
+        source_health_alert_after_minutes: Number(systemConfig.source_health_alert_after_minutes),
         alert_red_intensity: Number(systemConfig.alert_red_intensity),
         alert_yellow_intensity: Number(systemConfig.alert_yellow_intensity),
       }),
@@ -786,11 +786,14 @@ function App() {
               </label>
               <label>
                 连续离线多久后通知
-                <select value={systemConfig.source_health_alert_after_seconds} onChange={(event) => updateSystemConfig({ source_health_alert_after_seconds: Number(event.target.value) })}>
-                  <option value={60}>1 分钟</option>
-                  <option value={180}>3 分钟</option>
-                  <option value={300}>5 分钟</option>
-                  <option value={600}>10 分钟</option>
+                <select value={systemConfig.source_health_alert_after_minutes} onChange={(event) => updateSystemConfig({ source_health_alert_after_minutes: Number(event.target.value) })}>
+                  <option value={1}>1 分钟</option>
+                  <option value={3}>3 分钟</option>
+                  <option value={5}>5 分钟</option>
+                  <option value={10}>10 分钟</option>
+                  <option value={15}>15 分钟</option>
+                  <option value={30}>30 分钟</option>
+                  <option value={60}>1 小时</option>
                 </select>
               </label>
             </div>
