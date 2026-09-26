@@ -44,6 +44,8 @@ export const defaultSystemConfig: SystemConfig = {
   global_source_url: "wss://www.seismicportal.eu/standing_order/websocket",
   global_min_magnitude: 7.0,
   global_far_alert_enabled: true,
+  source_health_alert_enabled: true,
+  source_health_alert_after_seconds: 180,
   alert_red_intensity: 4,
   alert_yellow_intensity: 2,
   bark_red_level: "critical",

@@ -137,6 +137,8 @@ export type SystemConfig = {
   global_source_url: string;
   global_min_magnitude: number;
   global_far_alert_enabled: boolean;
+  source_health_alert_enabled: boolean;
+  source_health_alert_after_seconds: number;
   alert_red_intensity: number;
   alert_yellow_intensity: number;
   bark_red_level: string;

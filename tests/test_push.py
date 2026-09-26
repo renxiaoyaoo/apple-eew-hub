@@ -5,7 +5,7 @@ import pytest
 
 from app.models import Decision
 from app.models import EarthquakeEvent
-from app.push import bark_payload, ntfy_priority, push_text, send_webhook
+from app.push import bark_payload, ntfy_priority, push_text, send_webhook, system_bark_payload
 
 
 def event(**kwargs):
@@ -189,3 +189,14 @@ def test_cenc_catalog_payload_is_a_report_without_arrival_wording():
     assert "横波已到达" not in decoded
     assert "秒后到达" not in decoded
     assert query["level"] == "active"
+
+
+def test_source_outage_bark_notification_is_distinct_from_earthquakes():
+    _, outage = system_bark_payload("地震实时源异常", "测试")
+    _, recovery = system_bark_payload("地震实时源已恢复", "测试", recovery=True)
+
+    assert outage["group"] == "eew-system"
+    assert outage["level"] == "timeSensitive"
+    assert outage["sound"] == "alarm"
+    assert recovery["level"] == "passive"
+    assert "sound" not in recovery

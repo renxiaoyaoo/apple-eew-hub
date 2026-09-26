@@ -435,6 +435,7 @@ function App() {
       body: JSON.stringify({
         ...systemConfig,
         global_min_magnitude: Number(systemConfig.global_min_magnitude),
+        source_health_alert_after_seconds: Number(systemConfig.source_health_alert_after_seconds),
         alert_red_intensity: Number(systemConfig.alert_red_intensity),
         alert_yellow_intensity: Number(systemConfig.alert_yellow_intensity),
       }),
@@ -773,6 +774,24 @@ function App() {
               <label>
                 全球推送最低震级
                 <input value={systemConfig.global_min_magnitude} onChange={(event) => updateSystemConfig({ global_min_magnitude: Number(event.target.value) })} />
+              </label>
+            </div>
+          </div>
+          <div className="settingFull">
+            <h3>源掉线通知</h3>
+            <div className="settingPair">
+              <label className="checkLine">
+                <input type="checkbox" checked={systemConfig.source_health_alert_enabled} onChange={(event) => updateSystemConfig({ source_health_alert_enabled: event.target.checked })} />
+                向已启用设备发送异常和恢复通知
+              </label>
+              <label>
+                连续离线多久后通知
+                <select value={systemConfig.source_health_alert_after_seconds} onChange={(event) => updateSystemConfig({ source_health_alert_after_seconds: Number(event.target.value) })}>
+                  <option value={60}>1 分钟</option>
+                  <option value={180}>3 分钟</option>
+                  <option value={300}>5 分钟</option>
+                  <option value={600}>10 分钟</option>
+                </select>
               </label>
             </div>
           </div>

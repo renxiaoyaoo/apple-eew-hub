@@ -24,11 +24,13 @@ from .db import Database
 from .global_quakes import GlobalQuakeListener
 from .models import Decision, DeviceIn, DevicePatch, EarthquakeEvent, LocationUpdate, SimulationIn, SystemConfigPatch, TestPushIn, utc_now
 from .push import dispatch_push
+from .source_health import SourceHealthMonitor
 from .wolfx import WolfxListener
 
 db = Database(settings.db_path)
 listener = WolfxListener(db)
 global_listener = GlobalQuakeListener(db)
+source_health_monitor = SourceHealthMonitor(db)
 
 
 @asynccontextmanager
@@ -38,10 +40,12 @@ async def lifespan(_: FastAPI):
     restore_scheduled_arrival_pushes(db)
     listener.start()
     global_listener.start()
+    source_health_monitor.start()
     try:
         yield
     finally:
         cancel_all_arrival_pushes()
+        await source_health_monitor.stop()
         await listener.stop()
         await global_listener.stop()
 
@@ -148,6 +152,7 @@ async def status() -> dict:
             },
         },
         "auth_enabled": bool(settings.auth_token),
+        "source_health_alert": db.get_state("source_health_alert", {}),
         "device_count": db.one("SELECT COUNT(*) AS c FROM devices")["c"],
     }
 

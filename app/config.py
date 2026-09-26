@@ -27,6 +27,8 @@ class Settings:
     global_quake_source_url: str = os.getenv("GLOBAL_QUAKE_SOURCE_URL", "wss://www.seismicportal.eu/standing_order/websocket")
     global_quake_min_magnitude: float = float(os.getenv("GLOBAL_QUAKE_MIN_MAGNITUDE", "7.0"))
     global_far_alert_enabled: bool = os.getenv("GLOBAL_FAR_ALERT_ENABLED", "1") == "1"
+    source_health_alert_enabled: bool = os.getenv("SOURCE_HEALTH_ALERT_ENABLED", "1") == "1"
+    source_health_alert_after_seconds: int = int(os.getenv("SOURCE_HEALTH_ALERT_AFTER_SECONDS", "180"))
     alert_red_intensity: float = float(os.getenv("ALERT_RED_INTENSITY", "4"))
     alert_yellow_intensity: float = float(os.getenv("ALERT_YELLOW_INTENSITY", "2"))
     bark_red_level: str = os.getenv("BARK_RED_LEVEL", "critical")
@@ -66,6 +68,8 @@ def default_system_config() -> dict[str, Any]:
         "global_source_url": settings.global_quake_source_url,
         "global_min_magnitude": settings.global_quake_min_magnitude,
         "global_far_alert_enabled": settings.global_far_alert_enabled,
+        "source_health_alert_enabled": settings.source_health_alert_enabled,
+        "source_health_alert_after_seconds": settings.source_health_alert_after_seconds,
         "alert_red_intensity": settings.alert_red_intensity,
         "alert_yellow_intensity": settings.alert_yellow_intensity,
         "bark_red_level": settings.bark_red_level,
@@ -100,10 +104,13 @@ def set_system_config(config: dict[str, Any]) -> dict[str, Any]:
     merged = {**default_system_config(), **config}
     merged["wolfx_sources"] = [str(item).strip() for item in merged.get("wolfx_sources", []) if str(item).strip()]
     merged["global_min_magnitude"] = float(merged.get("global_min_magnitude") or 7.0)
+    merged["source_health_alert_after_seconds"] = int(merged.get("source_health_alert_after_seconds") or 180)
     merged["alert_red_intensity"] = float(merged.get("alert_red_intensity") or 4)
     merged["alert_yellow_intensity"] = float(merged.get("alert_yellow_intensity") or 2)
     if not 5 <= merged["global_min_magnitude"] <= 10:
         raise ValueError("global_min_magnitude must be between 5 and 10")
+    if not 30 <= merged["source_health_alert_after_seconds"] <= 3600:
+        raise ValueError("source_health_alert_after_seconds must be between 30 and 3600")
     if not 0 <= merged["alert_yellow_intensity"] <= 7:
         raise ValueError("alert_yellow_intensity must be between 0 and 7")
     if not 0 <= merged["alert_red_intensity"] <= 7:

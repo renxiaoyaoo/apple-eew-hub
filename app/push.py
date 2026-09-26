@@ -271,6 +271,64 @@ async def send_webhook(url: str, event: EarthquakeEvent, decision: Decision) -> 
         return {"channel": "webhook", "ok": False, "status_code": None, "latency_ms": latency_ms, "message": str(exc)[:300]}
 
 
+def system_bark_payload(title: str, body: str, recovery: bool = False) -> tuple[str, dict[str, str]]:
+    query = {
+        "level": "passive" if recovery else "timeSensitive",
+        "group": "eew-system",
+        "icon": PUSH_ICON_URL,
+        "isArchive": "1",
+    }
+    if not recovery:
+        query["sound"] = "alarm"
+    if settings.public_base_url:
+        query["url"] = settings.public_base_url.rstrip("/") + "/"
+    return f"{quote(title)}/{quote(body)}", query
+
+
+async def dispatch_system_notification(device: dict, title: str, body: str, recovery: bool = False) -> dict:
+    started = time.perf_counter()
+    channel = device.get("push_type", "bark")
+    try:
+        async with httpx.AsyncClient(timeout=8) as client:
+            if channel == "ntfy":
+                url = device.get("push_url", "")
+                if not url:
+                    return {"channel": channel, "ok": False, "status_code": None, "latency_ms": 0, "message": "missing ntfy URL"}
+                response = await client.post(
+                    url,
+                    content=body.encode("utf-8"),
+                    headers={"Title": title, "Priority": "default" if recovery else "high", "Tags": "warning"},
+                )
+            elif channel == "webhook":
+                url = device.get("push_url", "")
+                if not url:
+                    return {"channel": channel, "ok": False, "status_code": None, "latency_ms": 0, "message": "missing webhook URL"}
+                response = await client.post(
+                    url,
+                    json={"kind": "source_health", "title": title, "body": body, "recovery": recovery},
+                )
+            else:
+                bark_key = device.get("bark_key", "")
+                if not bark_key:
+                    return {"channel": "bark", "ok": False, "status_code": None, "latency_ms": 0, "message": "missing Bark key"}
+                path, query = system_bark_payload(title, body, recovery)
+                url = f"{settings.bark_base_url.rstrip('/')}/{quote(bark_key.strip(), safe='')}/{path}"
+                response = await client.get(url, params=query)
+                channel = "bark"
+        latency_ms = int((time.perf_counter() - started) * 1000)
+        ok = 200 <= response.status_code < 300
+        return {
+            "channel": channel,
+            "ok": ok,
+            "status_code": response.status_code,
+            "latency_ms": latency_ms,
+            "message": "ok" if ok else response.text[:300],
+        }
+    except Exception as exc:
+        latency_ms = int((time.perf_counter() - started) * 1000)
+        return {"channel": channel, "ok": False, "status_code": None, "latency_ms": latency_ms, "message": str(exc)[:300]}
+
+
 async def dispatch_push(device: dict, event: EarthquakeEvent, decision: Decision, repeat_override: int | None = None) -> dict:
     if device["push_type"] == "ntfy":
         return await send_ntfy(device.get("push_url", ""), event, decision)
