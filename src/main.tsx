@@ -1006,8 +1006,8 @@ function App() {
       <section className="monitorBlock">
         <div className="statusCard">
           <div className="statusMain">
-            <span className={status?.listener.connected ? "dot on" : "dot"} />
-            <strong>{status?.listener.connected ? "实时监听中" : "监听未就绪"}</strong>
+            <span className={status?.listener.connected ? "dot on" : status?.listener.degraded ? "dot pending" : "dot"} />
+            <strong>{status?.listener.connected ? "实时监听中" : status?.listener.degraded ? `部分源离线（${status.listener.connected_count}/${status.listener.source_count}）` : "监听未就绪"}</strong>
             <small>{connectedSources}/{sourceStates.length || status?.sources.length || 3} 个源在线</small>
           </div>
           <div className="sources compactSources">

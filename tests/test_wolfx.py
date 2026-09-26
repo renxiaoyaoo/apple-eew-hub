@@ -1,4 +1,5 @@
-from app.wolfx import normalize_wolfx_message
+from app.db import Database
+from app.wolfx import normalize_wolfx_message, reconcile_catalog_event
 
 
 def test_normalize_wolfx_message_accepts_common_fields():
@@ -68,3 +69,54 @@ def test_normalize_wolfx_message_accepts_jma_slash_time():
     assert event is not None
     assert event.source == "jma_eew"
     assert event.origin_time == "2026-08-20T00:50:21"
+
+
+def test_normalize_cenc_catalog_message_uses_endpoint_source():
+    event = normalize_wolfx_message(
+        {
+            "type": "reviewed",
+            "EventID": "AU.20260926050127.000",
+            "time": "2026-09-26 05:01:27",
+            "location": "四川宜宾市高县",
+            "magnitude": "4.5",
+            "depth": "5",
+            "latitude": "28.52",
+            "longitude": "104.67",
+        },
+        source_hint="cenc_eqlist",
+    )
+
+    assert event is not None
+    assert event.source == "cenc_eqlist"
+    assert event.is_final is True
+    assert event.epicenter == "四川宜宾市高县"
+
+
+def test_catalog_report_reuses_matching_early_warning_event(tmp_path):
+    db = Database(tmp_path / "eew.sqlite3")
+    db.init()
+    db.execute(
+        """
+        INSERT INTO events
+        (event_id, source, report_num, is_final, is_cancel, epicenter, latitude, longitude,
+         magnitude, depth_km, origin_time, raw_json, test, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            "eew-existing", "sc_eew", 2, 0, 0, "四川宜宾市高县", 28.52, 104.67,
+            4.6, 5, "2026-09-26 05:01:20", "{}", 0, "now", "now",
+        ),
+    )
+    event = normalize_wolfx_message(
+        {
+            "type": "reviewed", "EventID": "catalog-new", "time": "2026-09-26 05:01:27",
+            "location": "四川宜宾市高县", "magnitude": 4.5, "depth": 5,
+            "latitude": 28.52, "longitude": 104.67,
+        },
+        source_hint="cenc_eqlist",
+    )
+
+    reconciled = reconcile_catalog_event(db, event)
+
+    assert reconciled.event_id == "eew-existing"
+    assert reconciled.report_num == 3

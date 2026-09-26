@@ -114,9 +114,14 @@ async def status() -> dict:
     listener_state = db.get_state("listener", {"connected": False, "message": "not started", "sources": {}})
     global_state = db.get_state("global_listener", {"connected": False, "message": "not started", "sources": {}})
     merged_sources = {**(listener_state.get("sources") or {}), **(global_state.get("sources") or {})}
+    connected_count = sum(bool(item.get("connected")) for item in merged_sources.values())
+    source_count = len(merged_sources)
     listener_state = {
         **listener_state,
-        "connected": bool(listener_state.get("connected") or global_state.get("connected")),
+        "connected": bool(source_count and connected_count == source_count),
+        "degraded": bool(connected_count and connected_count < source_count),
+        "connected_count": connected_count,
+        "source_count": source_count,
         "sources": merged_sources,
     }
     return {
@@ -155,7 +160,9 @@ async def health() -> dict:
     sources = {**(wolfx_state.get("sources") or {}), **(global_state.get("sources") or {})}
     return {
         "ok": True,
-        "ready": any(item.get("connected") for item in sources.values()),
+        "ready": bool(sources) and all(item.get("connected") for item in sources.values()),
+        "connected_count": sum(bool(item.get("connected")) for item in sources.values()),
+        "source_count": len(sources),
         "time": utc_now(),
         "sources": {
             name: {

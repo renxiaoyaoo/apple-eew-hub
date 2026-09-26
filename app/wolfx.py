@@ -10,6 +10,7 @@ from typing import Any
 from .config import get_system_config, settings
 from .core import process_event
 from .db import Database
+from .geo import haversine_km, parse_dt
 from .models import EarthquakeEvent, utc_now
 from .simple_ws import SimpleWebSocket
 
@@ -53,7 +54,7 @@ def normalize_wolfx_time(value: Any) -> str:
 
 def normalize_wolfx_message(data: dict[str, Any], source_hint: str = "") -> EarthquakeEvent | None:
     nested = data.get("Data") or data.get("data") or data
-    source = str(_pick(data, "type", "source", "Source", default=source_hint or "wolfx"))
+    source = source_hint or str(_pick(data, "type", "source", "Source", default="wolfx"))
     event_id = str(_pick(nested, "EventID", "eventId", "id", "ID", default=""))
     latitude = _pick(nested, "Latitude", "latitude", "Lat", "lat")
     longitude = _pick(nested, "Longitude", "longitude", "Lon", "lon", "Lng", "lng")
@@ -80,7 +81,7 @@ def normalize_wolfx_message(data: dict[str, Any], source_hint: str = "") -> Eart
         event_id=event_id,
         source=source,
         report_num=int(_pick(nested, "ReportNum", "reportNum", "Serial", "serial", default=1) or 1),
-        is_final=bool(_pick(nested, "Final", "isFinal", "is_final", default=False)),
+        is_final=source.endswith("_eqlist") or bool(_pick(nested, "Final", "isFinal", "is_final", default=False)),
         is_cancel=bool(_pick(nested, "Cancel", "isCancel", "is_cancel", default=False)),
         epicenter=str(epicenter),
         latitude=float(latitude),
@@ -91,6 +92,27 @@ def normalize_wolfx_message(data: dict[str, Any], source_hint: str = "") -> Eart
         raw=data,
         test=False,
     )
+
+
+def reconcile_catalog_event(db: Database, event: EarthquakeEvent) -> EarthquakeEvent:
+    if event.source != "cenc_eqlist":
+        return event
+    for row in db.query(
+        """
+        SELECT event_id, latitude, longitude, magnitude, origin_time, report_num
+        FROM events WHERE test = 0 ORDER BY updated_at DESC LIMIT 100
+        """
+    ):
+        try:
+            time_gap = abs((parse_dt(event.origin_time) - parse_dt(row["origin_time"])).total_seconds())
+        except (TypeError, ValueError):
+            continue
+        if time_gap > 120 or abs(event.magnitude - row["magnitude"]) > 1:
+            continue
+        if haversine_km(event.latitude, event.longitude, row["latitude"], row["longitude"]) > 30:
+            continue
+        return event.model_copy(update={"event_id": row["event_id"], "report_num": row["report_num"] + 1})
+    return event
 
 
 class WolfxListener:
@@ -153,13 +175,15 @@ class WolfxListener:
                     async for message in ws:
                         try:
                             data = json.loads(message)
+                            self._set_source_state(
+                                source,
+                                {"connected": True, "message": "connected", "url": url, "last_message_at": utc_now()},
+                            )
                             event = normalize_wolfx_message(data, source_hint=source)
                             if event:
-                                self._set_source_state(
-                                    source,
-                                    {"connected": True, "message": "connected", "url": url, "last_message_at": utc_now()},
-                                )
-                                self.db.record_observed_event(event, True, "国内预警源")
+                                event = reconcile_catalog_event(self.db, event)
+                                reason = "中国地震台网正式速报" if source == "cenc_eqlist" else "国内预警源"
+                                self.db.record_observed_event(event, True, reason)
                                 await process_event(self.db, event)
                         except (json.JSONDecodeError, TypeError, ValueError) as exc:
                             LOGGER.warning("Ignored invalid Wolfx message for %s: %s", source, exc)

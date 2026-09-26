@@ -106,6 +106,8 @@ def bark_title(event: EarthquakeEvent, intensity: float, arrival_seconds: int, d
     prefix = "演练：" if event.test and event.source != "test" else ""
     if is_far_global(event, intensity, distance_km):
         return f"{prefix}{global_title(event)}"
+    if event.source == "cenc_eqlist":
+        return f"{prefix}地震速报：{event.epicenter} M{event.magnitude:.1f}"
     if tier == "red":
         return f"{prefix}强震预警：{arrival_seconds}秒后到达" if arrival_seconds > 0 else f"{prefix}强震预警：横波已到达"
     if tier == "yellow":
@@ -130,6 +132,11 @@ def bark_payload(
     title = bark_title(event, intensity, arrival_seconds, distance_km)
     if far_global:
         body = global_body(event, distance_km)
+    elif event.source == "cenc_eqlist":
+        body = (
+            f"中国地震台网正式速报：{event.epicenter} M{event.magnitude:.1f}，"
+            f"距你{distance_km:.0f}km，预计烈度{intensity:g}：{text}。"
+        )
     else:
         body = (
             f"{place_text(event)} M{event.magnitude:.1f}，距你{distance_km:.0f}km，"
@@ -203,6 +210,12 @@ def push_text(event: EarthquakeEvent, decision: Decision) -> tuple[str, str]:
         if event.test and event.source != "test":
             body = f"【演练】{body}"
         return f"{prefix}{global_title(event)}", body
+    if event.source == "cenc_eqlist":
+        return (
+            f"{prefix}地震速报：{event.epicenter} M{event.magnitude:.1f}",
+            f"中国地震台网正式速报：距你{decision.distance_km:.0f}km，"
+            f"预计烈度{decision.intensity:g}：{decision.intensity_text}。",
+        )
     title = f"{prefix}地震预警：{decision.arrival_seconds}秒后到达" if decision.arrival_seconds > 0 else f"{prefix}地震预警：横波已到达"
     body = (
         f"{place_text(event)} M{event.magnitude:.1f}，距你{decision.distance_km:.0f}km，"

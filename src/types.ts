@@ -1,5 +1,5 @@
 export type Status = {
-  listener: { connected: boolean; message: string; sources?: Record<string, { connected: boolean; url: string; message: string }> };
+  listener: { connected: boolean; degraded?: boolean; connected_count?: number; source_count?: number; message: string; sources?: Record<string, { connected: boolean; url: string; message: string }> };
   sources: string[];
   device_count: number;
   global_quake_min_magnitude?: number;

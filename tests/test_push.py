@@ -172,3 +172,20 @@ def test_drill_bark_payload_is_marked():
 
     assert decoded.startswith("演练：")
     assert "【演练】" in decoded
+
+
+def test_cenc_catalog_payload_is_a_report_without_arrival_wording():
+    path, query = bark_payload(
+        event(source="cenc_eqlist", magnitude=4.5, epicenter="四川宜宾市高县"),
+        240,
+        1.2,
+        "轻微震感",
+        -300,
+    )
+    decoded = unquote(path)
+
+    assert "地震速报：四川宜宾市高县 M4.5" in decoded
+    assert "中国地震台网正式速报" in decoded
+    assert "横波已到达" not in decoded
+    assert "秒后到达" not in decoded
+    assert query["level"] == "active"

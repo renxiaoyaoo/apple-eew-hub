@@ -64,7 +64,15 @@ http://127.0.0.1:18761/
 
 ```env
 WOLFX_WS_BASE=wss://ws-api.wolfx.jp
-WOLFX_SOURCES=sc_eew,cq_eew,cenc_eew,jma_eew
+WOLFX_SOURCES=sc_eew,cq_eew,cenc_eew,cenc_eqlist,jma_eew
+```
+
+`cenc_eqlist` 是事件驱动的中国地震台网正式速报 WebSocket，用于在 EEW 流漏报时补充记录和通知，不是定时拉取。
+
+服务器访问 Wolfx 必须经过 HTTP 代理时，可以设置：
+
+```env
+EEW_WEBSOCKET_PROXY=http://host.docker.internal:7890
 ```
 
 全球特大地震源：

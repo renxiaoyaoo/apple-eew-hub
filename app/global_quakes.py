@@ -165,9 +165,9 @@ class GlobalQuakeListener:
             async for raw_message in ws:
                 try:
                     message = json.loads(raw_message)
+                    self._set_state(True, "connected", last_message_at=utc_now())
                     event = normalize_emsc_message(message)
                     if event:
-                        self._set_state(True, "connected", last_message_at=utc_now())
                         should_record = should_record_global_event(self.db, event)
                         self.db.record_observed_event(event, should_record, global_record_reason(self.db, event))
                         self.db.prune_observed_events(settings.max_events)
