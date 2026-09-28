@@ -44,6 +44,8 @@ http://127.0.0.1:18761/
 
 系统只保存最新位置，不保存轨迹。
 
+内置城市可以只填城市名；其他位置请点击“获取位置”或填写经纬度，系统不会把未知城市静默当成成都。
+
 ## 4. 演练
 
 在管理页选择历史地震场景，点击“开始演练”。
@@ -115,6 +117,12 @@ BARK_BASE_URL=http://bark-server:18762
 ```
 
 设置 `EEW_AUTH_TOKEN` 后，网页会要求输入这个口令；除健康检查外，API 都会被保护。
+
+需要嵌入 Home Assistant 时，把 Home Assistant 的完整来源加入 `EEW_FRAME_ANCESTORS`，例如：
+
+```env
+EEW_FRAME_ANCESTORS='self' https://ha.example.com
+```
 
 Bark App 里填写外部地址：
 

@@ -9,17 +9,18 @@ import httpx
 from .config import get_system_config, settings
 from .models import Decision, EarthquakeEvent
 
-PUSH_ICON_URL = "https://cdn-icons-png.flaticon.com/512/12688/12688039.png"
 FAR_FIELD_SOURCES = {"emsc_global", "jma_eew"}
 GLOBAL_LOCAL_MAX_DISTANCE_KM = 1000
 
 
+def push_icon_url() -> str:
+    return getattr(settings, "push_icon_url", "")
+
+
 def is_far_global(event: EarthquakeEvent, intensity: float, distance_km: float | None = None) -> bool:
-    if event.source not in FAR_FIELD_SOURCES:
-        return False
     if distance_km is not None:
-        return distance_km > GLOBAL_LOCAL_MAX_DISTANCE_KM
-    return intensity <= 1
+        return distance_km > GLOBAL_LOCAL_MAX_DISTANCE_KM and event.magnitude >= get_system_config()["global_min_magnitude"]
+    return event.source in FAR_FIELD_SOURCES and intensity <= 1 and event.magnitude >= get_system_config()["global_min_magnitude"]
 
 
 def place_text(event: EarthquakeEvent) -> str:
@@ -103,7 +104,7 @@ def bark_repeat(intensity: float) -> tuple[int, float]:
 
 def bark_title(event: EarthquakeEvent, intensity: float, arrival_seconds: int, distance_km: float | None = None) -> str:
     tier = bark_tier(intensity)
-    prefix = "演练：" if event.test and event.source != "test" else ""
+    prefix = "测试通知：" if event.source == "test" else "演练：" if event.test else ""
     if is_far_global(event, intensity, distance_km):
         return f"{prefix}{global_title(event)}"
     if event.source == "cenc_eqlist":
@@ -142,14 +143,17 @@ def bark_payload(
             f"{place_text(event)} M{event.magnitude:.1f}，距你{distance_km:.0f}km，"
             f"{arrival_text(arrival_seconds)}，预计烈度{intensity:g}：{text}。勿乘电梯，保护头部。"
         )
-    if event.test and event.source != "test":
+    if event.source == "test":
+        body = f"【测试通知】{body}"
+    elif event.test:
         body = f"【演练】{body}"
     query = {
         **(bark_silent_level() if far_global else bark_level_for_tier(tier)),
         "group": "earthquake",
-        "icon": PUSH_ICON_URL,
         "isArchive": "1",
     }
+    if push_icon_url():
+        query["icon"] = push_icon_url()
     if not far_global and tier == "red" and arrival_seconds > 0:
         query["call"] = "1"
     if settings.public_base_url:
@@ -204,10 +208,12 @@ async def send_bark(
 
 
 def push_text(event: EarthquakeEvent, decision: Decision) -> tuple[str, str]:
-    prefix = "演练：" if event.test and event.source != "test" else ""
+    prefix = "测试通知：" if event.source == "test" else "演练：" if event.test else ""
     if is_far_global(event, decision.intensity, decision.distance_km):
         body = global_body(event, decision.distance_km)
-        if event.test and event.source != "test":
+        if event.source == "test":
+            body = f"【测试通知】{body}"
+        elif event.test:
             body = f"【演练】{body}"
         return f"{prefix}{global_title(event)}", body
     if event.source == "cenc_eqlist":
@@ -221,7 +227,9 @@ def push_text(event: EarthquakeEvent, decision: Decision) -> tuple[str, str]:
         f"{place_text(event)} M{event.magnitude:.1f}，距你{decision.distance_km:.0f}km，"
         f"{arrival_text(decision.arrival_seconds)}，预计烈度{decision.intensity:g}：{decision.intensity_text}。勿乘电梯，保护头部。"
     )
-    if event.test and event.source != "test":
+    if event.source == "test":
+        body = f"【测试通知】{body}"
+    elif event.test:
         body = f"【演练】{body}"
     return title, body
 
@@ -275,9 +283,10 @@ def system_bark_payload(title: str, body: str, recovery: bool = False) -> tuple[
     query = {
         "level": "passive" if recovery else "timeSensitive",
         "group": "eew-system",
-        "icon": PUSH_ICON_URL,
         "isArchive": "1",
     }
+    if push_icon_url():
+        query["icon"] = push_icon_url()
     if not recovery:
         query["sound"] = "alarm"
     if settings.public_base_url:

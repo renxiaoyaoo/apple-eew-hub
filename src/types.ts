@@ -26,6 +26,10 @@ export type Device = {
   min_magnitude: number;
   max_distance_km: number;
   min_intensity: number;
+  enabled: boolean;
+  receive_tests: boolean;
+  bark_key_configured?: boolean;
+  push_url_configured?: boolean;
 };
 
 export type LatestAlert = {
@@ -50,6 +54,9 @@ export type LatestAlert = {
     should_push: boolean;
     reason?: string;
     created_at?: string;
+    device_city?: string;
+    device_latitude?: number;
+    device_longitude?: number;
   }>;
 };
 

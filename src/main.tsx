@@ -27,6 +27,7 @@ import {
   sourceName,
   sourceOptions,
   timeMs,
+  uniqueEvents,
 } from "./domain";
 import type { Device, LatestAlert, Logs, PushEventGroup, Status, SystemConfig } from "./types";
 
@@ -73,6 +74,8 @@ function App() {
     min_magnitude: "4.5",
     max_distance_km: "500",
     min_intensity: "2",
+    enabled: true,
+    receive_tests: true,
   });
 
   async function refresh() {
@@ -147,6 +150,8 @@ function App() {
       min_magnitude: String(device.min_magnitude),
       max_distance_km: String(device.max_distance_km),
       min_intensity: String(device.min_intensity),
+      enabled: device.enabled,
+      receive_tests: device.receive_tests,
     });
     setMessage("正在编辑已有 Apple 设备。Bark Key 留空则不改。");
   }
@@ -183,19 +188,27 @@ function App() {
   const activeDevice = detailDeviceId
     ? devices.find((item) => item.id === detailDeviceId)
     : devices.find((item) => item.name === decision.device_name) ?? devices[0];
-  const user = activeDevice ? { lat: activeDevice.latitude, lng: activeDevice.longitude } : chengdu;
+  const snapshotLocation = decision.device_latitude !== undefined && decision.device_longitude !== undefined
+    ? { lat: decision.device_latitude, lng: decision.device_longitude }
+    : null;
+  const user = snapshotLocation ?? (activeDevice ? { lat: activeDevice.latitude, lng: activeDevice.longitude } : chengdu);
   const epicenter: [number, number] = [event.latitude || fallbackEpicenter.lat, event.longitude || fallbackEpicenter.lng];
   const userPoint: [number, number] = [user.lat || chengdu.lat, user.lng || chengdu.lng];
-  const waveKm = Math.max(35, Math.min(760, Math.abs(liveArrivalSeconds) * 3.5 + 90));
-  const level = severity(decision.intensity, status?.alert_levels);
+  const waveKm = Math.max(20, Math.min(20000,
+    liveArrivalSeconds > 0
+      ? decision.distance_km - liveArrivalSeconds * 3.5
+      : decision.distance_km + Math.abs(liveArrivalSeconds) * 3.5,
+  ));
+  const globalMinMagnitude = status?.global_quake_min_magnitude ?? 7.0;
+  const isFarGlobalBrief = decision.distance_km > 1000 && event.magnitude >= globalMinMagnitude;
+  const level = isFarGlobalBrief
+    ? event.magnitude >= 8 ? "red" : event.magnitude >= 7.5 ? "yellow" : "blue"
+    : severity(decision.intensity, status?.alert_levels);
   const sourceStates = Object.entries(status?.listener.sources ?? {});
   const connectedSources = sourceStates.filter(([, state]) => state.connected).length;
   const visiblePushes = logs.pushes.filter((item) => !hideTestHistory || !item.test);
   const visibleEvents = logs.events.filter((item) => !hideTestHistory || !item.test);
-  const visibleObservedEvents = logs.observed_events.filter((item, index, items) => {
-    const key = canonicalLogEventId(item.event_id);
-    return items.findIndex((candidate) => canonicalLogEventId(candidate.event_id) === key) === index;
-  });
+  const visibleObservedEvents = uniqueEvents(logs.observed_events);
   const observedTotal = logs.counts?.observed_events ?? visibleObservedEvents.length;
   const observedLimit = status?.retention?.max_events;
   const observedLimitText = observedLimit
@@ -206,10 +219,7 @@ function App() {
     : visibleObservedEvents.filter((item) =>
       item.source !== "emsc_global" || Boolean(item.recorded) || item.magnitude >= defaultGlobalCatalogMagnitude
     );
-  const dedupedVisibleEvents = visibleEvents.filter((item, index, items) => {
-    const key = canonicalLogEventId(item.event_id);
-    return items.findIndex((candidate) => canonicalLogEventId(candidate.event_id) === key) === index;
-  });
+  const dedupedVisibleEvents = uniqueEvents(visibleEvents);
   const decisionByEvent = logs.decisions.reduce((result, item) => {
     const current = result.get(item.event_id);
     if (!current || (!current.should_push && item.should_push)) result.set(item.event_id, item);
@@ -252,10 +262,9 @@ function App() {
     }
     return groups;
   }, new Map<string, PushEventGroup>()).values()).sort((a, b) => (timeMs(b.latestAt) ?? 0) - (timeMs(a.latestAt) ?? 0));
-  const displayCity = activeDevice?.default_city || "成都";
+  const displayCity = decision.device_city || activeDevice?.default_city || "你的位置";
   const eventEpicenterLabel = epicenterLabel(event.source, event.epicenter);
-  const isFarGlobalBrief = ["emsc_global", "jma_eew"].includes(event.source || "") && decision.distance_km > 1000 && decision.intensity <= 1;
-  const alertExplanation = alertReasonText(event, decision, activeDevice, status?.global_quake_min_magnitude ?? 7.0);
+  const alertExplanation = alertReasonText(event, decision, activeDevice, globalMinMagnitude);
   const isEventHistoryPage = routePath === "/history";
   const isCatalogPage = routePath === "/catalog";
   const isPushHistoryPage = routePath === "/pushes";
@@ -284,7 +293,13 @@ function App() {
 
   async function saveDevice(event: React.FormEvent) {
     event.preventDefault();
-    const location = coordsFor(form.default_city, form.latitude, form.longitude);
+    let location;
+    try {
+      location = coordsFor(form.default_city, form.latitude, form.longitude);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "位置格式不正确。");
+      return;
+    }
     const key = parseBarkKey(form.bark_key);
     const pushType = form.push_type as "bark" | "ntfy" | "webhook";
     const payload: Record<string, unknown> = {
@@ -296,11 +311,9 @@ function App() {
       min_magnitude: Number(form.min_magnitude),
       max_distance_km: Number(form.max_distance_km),
       min_intensity: Number(form.min_intensity),
+      enabled: form.enabled,
+      receive_tests: form.receive_tests,
     };
-    if (!editingId) {
-      payload.enabled = true;
-      payload.receive_tests = true;
-    }
     if (pushType === "bark") {
       payload.push_url = "";
       if (key || !editingId) payload.bark_key = key;
@@ -381,16 +394,31 @@ function App() {
     await navigator.share(shareData);
   }
 
-  async function testPush() {
-    if (!devices[0]) {
+  async function testPush(deviceId?: number) {
+    const target = devices.find((device) => device.id === deviceId) ?? devices.find((device) => device.id === editingId) ?? devices[0];
+    if (!target) {
       setMessage("先添加一台 Apple 设备。");
       return;
     }
     const result = await api<{ ok: boolean; latency_ms: number; message: string }>("/api/test-push", {
       method: "POST",
-      body: JSON.stringify({ device_id: devices[0].id }),
+      body: JSON.stringify({ device_id: target.id }),
     });
-    setMessage(result.ok ? `测试通知已发出，用时 ${result.latency_ms} ms。` : `推送失败：${result.message}`);
+    setMessage(result.ok ? `已向 ${target.name} 发出测试通知，用时 ${result.latency_ms} ms。` : `推送失败：${result.message}`);
+  }
+
+  async function toggleDevice(device: Device) {
+    await api(`/api/devices/${device.id}`, { method: "PATCH", body: JSON.stringify({ enabled: !device.enabled }) });
+    setMessage(`${device.name} 已${device.enabled ? "停用" : "启用"}。`);
+    await refresh();
+  }
+
+  async function deleteDevice(device: Device) {
+    if (!window.confirm(`确定删除 ${device.name} 吗？历史记录会保留。`)) return;
+    await api(`/api/devices/${device.id}`, { method: "DELETE" });
+    if (editingId === device.id) setEditingId(null);
+    setMessage(`${device.name} 已删除。`);
+    await refresh();
   }
 
   async function runDrill() {
@@ -443,7 +471,7 @@ function App() {
     setSystemConfig({ ...defaultSystemConfig, ...saved });
     configDirtyRef.current = false;
     setConfigDirty(false);
-    setMessage("系统配置已保存，监听源已按新配置重连。");
+    setMessage("系统配置已保存；只有监听源发生变化时才会重连。");
     await refresh();
   }
 
@@ -490,7 +518,7 @@ function App() {
 
   const alertCard = <AlertCard ref={alertCardRef} event={event} decision={decision} level={level} displayCity={displayCity} liveArrivalSeconds={liveArrivalSeconds} epicenter={eventEpicenterLabel} farGlobal={isFarGlobalBrief} explanation={detailEventId ? alertExplanation : undefined} />;
 
-  const mapSection = <EarthquakeMap epicenter={epicenter} user={userPoint} waveKm={waveKm} level={level} epicenterLabel={eventEpicenterLabel} userLabel={activeDevice?.default_city || "成都默认位置"} />;
+  const mapSection = <EarthquakeMap epicenter={epicenter} user={userPoint} waveKm={waveKm} level={level} epicenterLabel={eventEpicenterLabel} userLabel={displayCity} />;
 
   const renderPushHistorySection = (limit?: number) => (
     <section className="panel historyPanel">
@@ -704,6 +732,7 @@ function App() {
           <p>黄色：烈度 ≥ {systemConfig.alert_yellow_intensity}。发现时发送 {repeatText(systemConfig.bark_yellow_repeat)} {barkLevelText(systemConfig.bark_yellow_level)}，音量 {systemConfig.bark_yellow_volume || "默认"}，铃声 {systemConfig.bark_yellow_sound}，但不持续响；如果横波尚未到达，到达时再发一次。</p>
           <p>蓝色：低于黄色但仍需要提醒时使用。发现时发送 {repeatText(systemConfig.bark_blue_repeat)} {barkLevelText(systemConfig.bark_blue_level)}，音量 {systemConfig.bark_blue_volume || "默认"}，铃声 {systemConfig.bark_blue_sound || "系统默认"}；如果横波尚未到达，到达时再发一次。</p>
           <p>说明：Bark 的最高级强提醒用于尽量突破静音/专注模式；持续响只给红色本地预警使用。远场全球大震统一静默提醒。</p>
+          <p className="safetyNote">本系统使用第三方实时源和估算模型，只作为辅助提醒，不能替代当地官方地震预警与应急信息。</p>
         </div>
       </section>
       <section className="panel pushSettingsPanel">
@@ -913,6 +942,7 @@ function App() {
           <h1>Apple 设备地震预警系统</h1>
           <p className="heroText">自建地震预警中枢，默认可配套自己的 Bark Server，也支持 ntfy 和 Webhook。可为每台 Apple 设备单独设置位置和推送条件。</p>
           <a className="repoLink" href={repoUrl} target="_blank" rel="noreferrer">开源项目 GitHub</a>
+          <small className="heroDisclaimer">第三方辅助预警，不能替代当地官方预警与应急信息。</small>
         </div>
       </section>
 
@@ -959,7 +989,7 @@ function App() {
           <div className="buttonRow">
             <button type="button" className="ghost" onClick={locate}>获取位置</button>
             <button>{editingId ? "保存修改" : "保存设备"}</button>
-            <button type="button" className="secondary" onClick={testPush}>测试通知</button>
+            <button type="button" className="secondary" onClick={() => testPush()}>测试通知</button>
           </div>
           <details>
             <summary>每台设备独立推送阈值</summary>
@@ -968,16 +998,24 @@ function App() {
               <label>最大距离 km<input value={form.max_distance_km} onChange={(e) => setForm({ ...form, max_distance_km: e.target.value })} /></label>
               <label>最低烈度<input value={form.min_intensity} onChange={(e) => setForm({ ...form, min_intensity: e.target.value })} /></label>
             </div>
+            <div className="deviceToggles">
+              <label className="checkLine"><input type="checkbox" checked={form.enabled} onChange={(e) => setForm({ ...form, enabled: e.target.checked })} />启用这台设备</label>
+              <label className="checkLine"><input type="checkbox" checked={form.receive_tests} onChange={(e) => setForm({ ...form, receive_tests: e.target.checked })} />接收演练通知</label>
+            </div>
           </details>
         </form>
         {devices.length > 0 && (
           <div className="deviceList">
             {devices.map((device) => (
-              <button key={device.id} className="deviceItem" onClick={() => editDevice(device)}>
-                <span>{device.name}</span>
-                <small>{device.push_type || "bark"} · 城市：{device.default_city || "未设置"} · 推送条件：震级 ≥ {device.min_magnitude}，距离 ≤ {device.max_distance_km} km，烈度 ≥ {device.min_intensity}</small>
-                <b>编辑</b>
-              </button>
+              <div key={device.id} className={`deviceItem ${device.enabled ? "" : "disabled"}`}>
+                <div><span>{device.name}</span><small>{device.push_type || "bark"} · 城市：{device.default_city || "未设置"} · 推送条件：震级 ≥ {device.min_magnitude}，距离 ≤ {device.max_distance_km} km，烈度 ≥ {device.min_intensity}</small></div>
+                <div className="deviceActions">
+                  <button type="button" className="compact" onClick={() => testPush(device.id)}>测试</button>
+                  <button type="button" className="compact" onClick={() => editDevice(device)}>编辑</button>
+                  <button type="button" className="ghost compact" onClick={() => toggleDevice(device)}>{device.enabled ? "停用" : "启用"}</button>
+                  <button type="button" className="dangerButton" onClick={() => deleteDevice(device)}>删除</button>
+                </div>
+              </div>
             ))}
           </div>
         )}

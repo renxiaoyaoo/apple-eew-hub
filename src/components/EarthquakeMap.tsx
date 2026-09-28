@@ -25,7 +25,7 @@ export function EarthquakeMap({ epicenter, user, waveKm, level, epicenterLabel, 
     <section className="mapPanel">
       <div className="sectionHead"><div><h2>震中、你的位置和地震波</h2></div><span>{userLabel}</span></div>
       <MapContainer center={user} zoom={7} scrollWheelZoom={false} className="map">
-        <TileLayer attribution="&copy; OpenStreetMap" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+        <TileLayer attribution="&copy; OpenStreetMap" url="/map-tiles/{z}/{x}/{y}.png" />
         <FitMap points={[epicenter, user]} />
         <Circle center={epicenter} radius={waveKm * 1000} pathOptions={{ color: level === "red" ? "#dc2626" : level === "yellow" ? "#d97706" : "#2563eb", fillOpacity: 0.08, weight: 2 }} />
         <Polyline positions={[epicenter, user]} pathOptions={{ color: "#1f2937", weight: 2, dashArray: "7 9" }} />

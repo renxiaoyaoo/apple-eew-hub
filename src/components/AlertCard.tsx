@@ -20,6 +20,11 @@ export const AlertCard = forwardRef<HTMLElement, Props>(function AlertCard(
   { event, decision, level, displayCity, liveArrivalSeconds, epicenter, farGlobal, explanation },
   ref,
 ) {
+  const farTitle = event.magnitude >= 8
+    ? "全球特大地震提醒"
+    : event.magnitude >= 7.5
+      ? "全球强震提醒"
+      : "全球大震提醒";
   return (
     <section ref={ref} className={`alertCard ${level}`}>
       <div className="alertPattern alertPatternGrid" aria-hidden="true">
@@ -28,8 +33,8 @@ export const AlertCard = forwardRef<HTMLElement, Props>(function AlertCard(
       <div className="alertPattern alertPatternTape" aria-hidden="true">
         {Array.from({ length: 14 }, (_, index) => <span key={index} />)}
       </div>
-      <div className="alertHead"><span>{event.test ? "演练/示例" : "实时预警"}</span></div>
-      <h2>{farGlobal ? "全球特大地震预警" : cardTitle(liveArrivalSeconds, displayCity)}</h2>
+      <div className="alertHead"><span>{event.source === "test" ? "测试通知" : event.test ? "演练/示例" : "实时预警"}</span></div>
+      <h2>{farGlobal ? farTitle : cardTitle(liveArrivalSeconds, displayCity)}</h2>
       <strong>{farGlobal ? `M${event.magnitude.toFixed(1)}` : liveArrivalSeconds > 0 ? `${liveArrivalSeconds} 秒` : "已到达"}</strong>
       <div className="bigMetrics">
         <div><span>距离</span><b>{Math.round(decision.distance_km)} km</b></div>

@@ -15,6 +15,8 @@ LOGGER = logging.getLogger(__name__)
 MAX_SCHEDULED_ARRIVAL_SECONDS = 1800
 GLOBAL_LOCAL_MAX_DISTANCE_KM = 1000
 FAR_FIELD_SOURCES = {"emsc_global", "jma_eew"}
+PUSH_RETRY_DELAYS = (0, 2, 5)
+PENDING_PUSH_MAX_AGE_SECONDS = 600
 BACKGROUND_TASKS: set[asyncio.Task] = set()
 ARRIVAL_TASKS: dict[tuple[str, int], asyncio.Task] = {}
 
@@ -24,7 +26,7 @@ def is_global_local_distance(distance_km: float, device: dict) -> bool:
 
 
 def is_far_field_event(event: EarthquakeEvent, distance_km: float, device: dict) -> bool:
-    return event.source in FAR_FIELD_SOURCES and not is_global_local_distance(distance_km, device)
+    return not is_global_local_distance(distance_km, device)
 
 
 def is_jma_forecast_only(event: EarthquakeEvent) -> bool:
@@ -34,18 +36,25 @@ def is_jma_forecast_only(event: EarthquakeEvent) -> bool:
 
 
 async def _dispatch_and_update_push(db: Database, push_id: int, device: dict, event: EarthquakeEvent, decision: Decision) -> None:
-    try:
-        result = await dispatch_push(device, event, decision)
-    except Exception as exc:
-        db.execute(
-            """
-            UPDATE pushes
-            SET ok = 0, latency_ms = 0, message = ?
-            WHERE id = ?
-            """,
-            (f"dispatch failed: {type(exc).__name__}", push_id),
-        )
-        raise
+    result = None
+    for delay in PUSH_RETRY_DELAYS:
+        if delay:
+            await asyncio.sleep(delay)
+        try:
+            result = await dispatch_push(device, event, decision)
+        except Exception as exc:
+            result = {
+                "channel": device.get("push_type", "bark"),
+                "ok": False,
+                "status_code": None,
+                "latency_ms": 0,
+                "message": f"dispatch failed: {type(exc).__name__}",
+            }
+        if result["ok"]:
+            break
+    assert result is not None
+    if not result["ok"]:
+        LOGGER.error("Background push task failed after %s attempts", len(PUSH_RETRY_DELAYS))
     db.execute(
         """
         UPDATE pushes
@@ -164,7 +173,7 @@ def cancel_all_arrival_pushes() -> int:
 
 
 def _should_schedule_arrival(event: EarthquakeEvent, decision: Decision) -> bool:
-    if event.source in FAR_FIELD_SOURCES and decision.intensity <= 1:
+    if decision.distance_km > GLOBAL_LOCAL_MAX_DISTANCE_KM and event.magnitude >= get_system_config()["global_min_magnitude"]:
         return False
     return 1 <= decision.arrival_seconds <= MAX_SCHEDULED_ARRIVAL_SECONDS
 
@@ -284,6 +293,9 @@ def decide_for_device(event: EarthquakeEvent, device: dict, override: dict | Non
         status=status,
         should_push=should_push,
         reason=reason,
+        device_city=device.get("default_city", ""),
+        device_latitude=device.get("latitude"),
+        device_longitude=device.get("longitude"),
     )
 
 
@@ -347,8 +359,9 @@ async def process_event(db: Database, event: EarthquakeEvent, override: dict | N
                 """
                 INSERT INTO decisions
                 (event_id, device_id, distance_km, arrival_seconds, intensity, intensity_text,
-                 status, should_push, reason, pushed, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 status, should_push, reason, pushed, device_city, device_latitude,
+                 device_longitude, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     event.event_id,
@@ -361,6 +374,9 @@ async def process_event(db: Database, event: EarthquakeEvent, override: dict | N
                     int(decision.should_push),
                     decision.reason,
                     int(already_pushed),
+                    decision.device_city,
+                    decision.device_latitude,
+                    decision.device_longitude,
                     utc_now(),
                 ),
             )
@@ -401,6 +417,64 @@ async def process_event(db: Database, event: EarthquakeEvent, override: dict | N
     for device, decision in arrivals:
         _schedule_arrival_push(db, device, event, decision)
     return decisions
+
+
+def restore_pending_pushes(db: Database) -> int:
+    rows = db.query(
+        """
+        SELECT p.id AS push_id, p.push_phase, p.created_at AS push_created_at,
+               e.*, d.id AS dev_id, d.name AS device_name, d.push_type, d.bark_key,
+               d.push_url, d.default_city, d.latitude AS dev_latitude,
+               d.longitude AS dev_longitude, d.min_magnitude, d.max_distance_km,
+               d.min_intensity, d.enabled, d.receive_tests,
+               x.distance_km, x.arrival_seconds, x.intensity, x.intensity_text,
+               x.status, x.should_push, x.reason, x.device_city,
+               x.device_latitude, x.device_longitude
+        FROM pushes p
+        JOIN events e ON e.event_id = p.event_id
+        JOIN devices d ON d.id = p.device_id
+        JOIN decisions x ON x.id = (
+          SELECT MAX(latest.id) FROM decisions latest
+          WHERE latest.event_id = p.event_id AND latest.device_id = p.device_id
+        )
+        WHERE p.message = 'pending' AND p.push_phase IN ('initial', 'arrival')
+        ORDER BY p.id
+        """
+    )
+    restored = 0
+    for row in rows:
+        if _elapsed_seconds(row["push_created_at"]) > PENDING_PUSH_MAX_AGE_SECONDS:
+            db.execute("UPDATE pushes SET message = ? WHERE id = ?", ("not retried after restart: stale", row["push_id"]))
+            continue
+        if row["is_cancel"] or not row["enabled"] or not row["should_push"]:
+            db.execute("UPDATE pushes SET message = ? WHERE id = ?", ("not retried after restart: inactive", row["push_id"]))
+            continue
+        event = EarthquakeEvent(
+            event_id=row["event_id"], source=row["source"], report_num=row["report_num"],
+            is_final=bool(row["is_final"]), is_cancel=bool(row["is_cancel"]),
+            epicenter=row["epicenter"], latitude=row["latitude"], longitude=row["longitude"],
+            magnitude=row["magnitude"], depth_km=row["depth_km"], origin_time=row["origin_time"],
+            raw=json.loads(row["raw_json"]), test=bool(row["test"]),
+        )
+        arrival_seconds = 0 if row["push_phase"] == "arrival" else row["arrival_seconds"]
+        decision = Decision(
+            device_id=row["dev_id"], device_name=row["device_name"], distance_km=row["distance_km"],
+            arrival_seconds=arrival_seconds, intensity=row["intensity"], intensity_text=row["intensity_text"],
+            status="arrived" if arrival_seconds <= 0 else row["status"], should_push=True,
+            reason=row["reason"], device_city=row["device_city"],
+            device_latitude=row["device_latitude"], device_longitude=row["device_longitude"],
+        )
+        device = normalize_device({
+            "id": row["dev_id"], "name": row["device_name"], "push_type": row["push_type"],
+            "bark_key": row["bark_key"], "push_url": row["push_url"], "default_city": row["default_city"],
+            "latitude": row["dev_latitude"], "longitude": row["dev_longitude"],
+            "min_magnitude": row["min_magnitude"], "max_distance_km": row["max_distance_km"],
+            "min_intensity": row["min_intensity"], "enabled": row["enabled"],
+            "receive_tests": row["receive_tests"],
+        })
+        _create_background_task(_dispatch_and_update_push(db, row["push_id"], device, event, decision))
+        restored += 1
+    return restored
 
 
 def restore_scheduled_arrival_pushes(db: Database) -> int:

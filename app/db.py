@@ -58,6 +58,9 @@ CREATE TABLE IF NOT EXISTS decisions (
   should_push INTEGER NOT NULL,
   reason TEXT NOT NULL,
   pushed INTEGER NOT NULL DEFAULT 0,
+  device_city TEXT NOT NULL DEFAULT '',
+  device_latitude REAL,
+  device_longitude REAL,
   created_at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS pushes (
@@ -138,6 +141,13 @@ class Database:
         push_columns = {row["name"] for row in conn.execute("PRAGMA table_info(pushes)").fetchall()}
         if "push_phase" not in push_columns:
             conn.execute("ALTER TABLE pushes ADD COLUMN push_phase TEXT NOT NULL DEFAULT 'initial'")
+        decision_columns = {row["name"] for row in conn.execute("PRAGMA table_info(decisions)").fetchall()}
+        if "device_city" not in decision_columns:
+            conn.execute("ALTER TABLE decisions ADD COLUMN device_city TEXT NOT NULL DEFAULT ''")
+        if "device_latitude" not in decision_columns:
+            conn.execute("ALTER TABLE decisions ADD COLUMN device_latitude REAL")
+        if "device_longitude" not in decision_columns:
+            conn.execute("ALTER TABLE decisions ADD COLUMN device_longitude REAL")
         conn.execute("UPDATE events SET depth_km = ABS(depth_km) WHERE depth_km < 0")
         conn.execute("UPDATE observed_events SET depth_km = ABS(depth_km) WHERE depth_km < 0")
         conn.commit()

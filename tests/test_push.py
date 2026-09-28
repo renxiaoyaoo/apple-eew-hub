@@ -99,6 +99,14 @@ def test_far_global_bark_payload_uses_magnitude_tiers_without_local_countdown(ma
     assert ntfy_priority(event(source="emsc_global", magnitude=magnitude), decision()) == "min"
 
 
+def test_far_domestic_major_quake_also_uses_silent_global_wording():
+    path, query = bark_payload(event(source="cenc_eew", magnitude=7.2), 9000, 1, "轻微震感", 1200)
+    decoded = unquote(path)
+    assert "全球大震提醒" in decoded
+    assert "秒后到达" not in decoded
+    assert query["level"] == "passive"
+
+
 def test_far_global_ntfy_and_webhook_text_does_not_use_local_countdown():
     title, body = push_text(event(source="emsc_global", magnitude=7.6, epicenter="COLOMBIA"), decision(distance_km=15000))
 
@@ -172,6 +180,13 @@ def test_drill_bark_payload_is_marked():
 
     assert decoded.startswith("演练：")
     assert "【演练】" in decoded
+
+
+def test_test_push_is_unmistakably_marked():
+    path, _ = bark_payload(event(source="test", test=True), 0, 2, "轻微震感", 18)
+    decoded = unquote(path)
+    assert decoded.startswith("测试通知：")
+    assert "【测试通知】" in decoded
 
 
 def test_cenc_catalog_payload_is_a_report_without_arrival_wording():

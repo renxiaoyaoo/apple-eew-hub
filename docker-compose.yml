@@ -5,7 +5,7 @@ services:
     restart: unless-stopped
     depends_on:
       bark-server:
-        condition: service_started
+        condition: service_healthy
     ports:
       - "${EEW_BIND_ADDRESS:-127.0.0.1}:${EEW_HUB_PORT:-18761}:18761"
     environment:
@@ -43,21 +43,43 @@ services:
       BARK_BASE_URL: ${BARK_BASE_URL:-http://bark-server:18762}
       EEW_AUTH_TOKEN: ${EEW_AUTH_TOKEN:-}
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-}
+      PUSH_ICON_URL: ${PUSH_ICON_URL:-}
+      EEW_FRAME_ANCESTORS: ${EEW_FRAME_ANCESTORS:-'self'}
+      MAP_TILE_URL: ${MAP_TILE_URL:-https://tile.openstreetmap.org/{z}/{x}/{y}.png}
+      MAP_HTTP_PROXY: ${MAP_HTTP_PROXY:-${EEW_WEBSOCKET_PROXY:-}}
+      EEW_MAP_CACHE_MAX_FILES: ${EEW_MAP_CACHE_MAX_FILES:-5000}
+      EEW_BACKUP_RETENTION_DAYS: ${EEW_BACKUP_RETENTION_DAYS:-14}
       EEW_DATA_DIR: /data
     volumes:
       - ./data:/data
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
-  bark-server:
+  bark-core:
     image: ghcr.io/finb/bark-server:v2.3.5
-    container_name: apple-eew-bark
+    container_name: apple-eew-bark-core
     restart: unless-stopped
     command: ["bark-server", "--addr", "0.0.0.0:18762", "--data", "/data"]
+    volumes:
+      - ./bark-data:/data
+
+  bark-server:
+    image: nginx:1.27.5-alpine
+    container_name: apple-eew-bark
+    restart: unless-stopped
+    depends_on:
+      bark-core:
+        condition: service_started
     ports:
       - "${BARK_BIND_ADDRESS:-127.0.0.1}:${BARK_HOST_PORT:-18762}:18762"
     volumes:
-      - ./bark-data:/data
+      - ./deploy/bark-gateway.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./app/static/eew-icon.png:/srv/eew-icon.png:ro
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:18762/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
   cloudflared:
     image: cloudflare/cloudflared:2026.5.0

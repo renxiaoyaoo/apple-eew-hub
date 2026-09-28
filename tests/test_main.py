@@ -1,7 +1,9 @@
 import anyio
 
 from app.db import Database
-from app.main import export_config, logs
+from app.config import default_system_config, set_system_config
+from app.main import export_config, logs, update_system_config
+from app.models import SystemConfigPatch
 
 
 def test_logs_return_only_latest_decision_per_device(tmp_path, monkeypatch):
@@ -58,3 +60,33 @@ def test_config_export_excludes_push_credentials(tmp_path, monkeypatch):
     assert result["secrets_included"] is False
     assert "bark_key" not in result["devices"][0]
     assert "push_url" not in result["devices"][0]
+
+
+def test_alert_style_update_does_not_restart_listeners(tmp_path, monkeypatch):
+    database = Database(tmp_path / "eew.sqlite3")
+    database.init()
+    monkeypatch.setattr("app.main.db", database)
+
+    class FakeListener:
+        def __init__(self):
+            self.stops = 0
+            self.starts = 0
+
+        async def stop(self):
+            self.stops += 1
+
+        def start(self):
+            self.starts += 1
+
+    wolfx = FakeListener()
+    global_listener = FakeListener()
+    monkeypatch.setattr("app.main.listener", wolfx)
+    monkeypatch.setattr("app.main.global_listener", global_listener)
+    set_system_config(default_system_config())
+    try:
+        anyio.run(update_system_config, SystemConfigPatch(alert_red_intensity=5))
+    finally:
+        set_system_config(default_system_config())
+
+    assert (wolfx.stops, wolfx.starts) == (0, 0)
+    assert (global_listener.stops, global_listener.starts) == (0, 0)

@@ -127,3 +127,6 @@ class Decision(BaseModel):
     status: Literal["pending", "arrived", "passed"]
     should_push: bool
     reason: str
+    device_city: str = ""
+    device_latitude: float | None = None
+    device_longitude: float | None = None

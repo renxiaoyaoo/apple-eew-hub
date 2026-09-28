@@ -109,6 +109,13 @@ select:focus {
   box-shadow: 0 0 0 4px rgba(164, 95, 67, .14);
 }
 
+button:focus-visible,
+a:focus-visible,
+summary:focus-visible {
+  outline: 3px solid #2563eb;
+  outline-offset: 3px;
+}
+
 details {
   border: 1px solid #dfd2c3;
   border-radius: 8px;
@@ -240,6 +247,14 @@ details[open] summary {
   text-decoration: none;
   font-size: 14px;
   font-weight: 850;
+}
+
+.heroDisclaimer {
+  display: block;
+  margin-top: 10px;
+  color: #75685d;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .monitorBlock {
@@ -416,6 +431,24 @@ details[open] summary {
   color: #2f2a24;
   text-align: left;
   box-shadow: none;
+  border-radius: 8px;
+}
+
+.deviceItem.disabled {
+  opacity: .62;
+}
+
+.deviceItem > div:first-child {
+  display: grid;
+  gap: 4px;
+}
+
+.deviceActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
 .deviceItem span {
@@ -426,11 +459,11 @@ details[open] summary {
   color: #75685d;
 }
 
-.deviceItem b {
-  grid-row: 1 / 3;
-  grid-column: 2;
-  align-self: center;
-  color: #8a4b35;
+.deviceToggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin-top: 10px;
 }
 
 .message {
@@ -1119,6 +1152,13 @@ details[open] summary {
   line-height: 1.45;
 }
 
+.safetyNote {
+  border-left: 3px solid #b45309;
+  padding-left: 10px;
+  color: #6f6258;
+  font-size: 13px;
+}
+
 .historyPanel {
   margin-top: 16px;
 }
@@ -1505,6 +1545,14 @@ details[open] summary {
     grid-template-columns: 1fr;
   }
 
+  .deviceItem {
+    grid-template-columns: 1fr;
+  }
+
+  .deviceActions {
+    justify-content: flex-start;
+  }
+
   .alertCard {
     min-height: calc(100vh - 20px);
   }
@@ -1525,5 +1573,16 @@ details[open] summary {
   .map {
     min-height: 330px;
     height: 46vh;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
   }
 }

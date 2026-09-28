@@ -22,6 +22,12 @@ class Settings:
     bark_base_url: str = os.getenv("BARK_BASE_URL", "http://bark-server:18762")
     auth_token: str = os.getenv("EEW_AUTH_TOKEN", "")
     public_base_url: str = os.getenv("PUBLIC_BASE_URL", "")
+    push_icon_url: str = os.getenv("PUSH_ICON_URL", "")
+    frame_ancestors: str = os.getenv("EEW_FRAME_ANCESTORS", "'self'")
+    map_tile_url: str = os.getenv("MAP_TILE_URL", "https://tile.openstreetmap.org/{z}/{x}/{y}.png")
+    map_http_proxy: str = os.getenv("MAP_HTTP_PROXY", "")
+    backup_retention_days: int = int(os.getenv("EEW_BACKUP_RETENTION_DAYS", "14"))
+    map_cache_max_files: int = int(os.getenv("EEW_MAP_CACHE_MAX_FILES", "5000"))
     listener_enabled: bool = os.getenv("WOLFX_LISTENER_ENABLED", "1") == "1"
     global_listener_enabled: bool = os.getenv("GLOBAL_QUAKE_LISTENER_ENABLED", "1") == "1"
     global_quake_source_url: str = os.getenv("GLOBAL_QUAKE_SOURCE_URL", "wss://www.seismicportal.eu/standing_order/websocket")

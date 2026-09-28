@@ -67,6 +67,17 @@ def test_global_major_earthquake_pushes_gently_when_far_away():
     assert decision.intensity_text == "轻微震感"
 
 
+def test_domestic_source_is_also_far_field_for_a_distant_device():
+    decision = decide_for_device(
+        event(test=False, source="cenc_eew", magnitude=7.2, latitude=31.0, longitude=104.0),
+        device(latitude=-33.9, longitude=151.2),
+    )
+    assert decision.distance_km > 1000
+    assert decision.should_push is True
+    assert decision.reason == "global major earthquake"
+    assert decision.intensity <= 1
+
+
 def test_configured_global_major_threshold_controls_far_away_push():
     set_system_config({"global_min_magnitude": 7.0})
     try:
@@ -271,6 +282,7 @@ async def test_background_push_failure_is_recorded_and_cleaned_up(tmp_path, monk
         raise RuntimeError("push backend down")
 
     monkeypatch.setattr("app.core.dispatch_push", failing_dispatch)
+    monkeypatch.setattr("app.core.PUSH_RETRY_DELAYS", (0, 0, 0))
     db = Database(tmp_path / "eew.sqlite3")
     db.init()
     db.execute(
@@ -291,6 +303,48 @@ async def test_background_push_failure_is_recorded_and_cleaned_up(tmp_path, monk
     row = db.one("SELECT ok, message FROM pushes")
     assert row["ok"] == 0
     assert row["message"] == "dispatch failed: RuntimeError"
+
+
+@pytest.mark.anyio
+async def test_failed_push_is_retried_before_being_recorded(tmp_path, monkeypatch):
+    attempts = 0
+
+    async def flaky_dispatch(device_row, event_row, decision):
+        nonlocal attempts
+        attempts += 1
+        return {
+            "channel": "bark",
+            "ok": attempts == 3,
+            "status_code": 200 if attempts == 3 else 503,
+            "latency_ms": 1,
+            "message": "ok" if attempts == 3 else "temporary failure",
+        }
+
+    monkeypatch.setattr("app.core.dispatch_push", flaky_dispatch)
+    monkeypatch.setattr("app.core.PUSH_RETRY_DELAYS", (0, 0, 0))
+    db = Database(tmp_path / "eew.sqlite3")
+    db.init()
+    db.execute(
+        """
+        INSERT INTO devices
+        (name, push_type, bark_key, push_url, default_city, latitude, longitude,
+         min_magnitude, max_distance_km, min_intensity, enabled, receive_tests, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        ("iPhone", "bark", "fake-key", "", "成都", 30.58, 103.92, 4.5, 500, 2, 1, 1, "now", "now"),
+    )
+    await process_event(db, event(event_id="retry-event"), {"distance_km": 199, "countdown_seconds": 0, "intensity": 3})
+    await anyio.sleep(0.1)
+
+    assert attempts == 3
+    assert db.one("SELECT ok, message FROM pushes")["ok"] == 1
+
+
+def test_decision_captures_device_location_snapshot():
+    decision = decide_for_device(event(), device(), {"distance_km": 199, "countdown_seconds": 18, "intensity": 3})
+    assert decision.device_city == "成都双流"
+    assert decision.device_latitude == 30.58
+    assert decision.device_longitude == 103.92
 
 
 def test_restore_scheduled_arrival_pushes_reschedules_pending_arrival(tmp_path, monkeypatch):

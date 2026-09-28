@@ -2,6 +2,8 @@
 
 一个可自部署的私有地震预警中枢。它监听实时地震源，在本地判断是否需要提醒，并把预警推送到 iPhone、iPad 或家庭屏幕。
 
+本项目使用第三方实时数据和简化估算模型，只能作为辅助提醒，不能替代当地官方地震预警、灾情信息和应急指令。
+
 项目可以运行在任意 Docker 主机上：家用服务器、NAS、迷你主机、树莓派或云服务器都可以。
 
 开源地址：https://github.com/renxiaoyaoo/apple-eew-hub
@@ -15,6 +17,7 @@
 - 提供安卓风格预警卡片、倒计时、地图、演练和历史记录。
 - 支持国内 Wolfx EEW、CENC 正式速报和 EMSC 全球特大地震源。
 - 实时源持续离线时主动通知，恢复后再通知一次。
+- 每天自动备份 SQLite，默认保留最近 14 份自动备份。
 
 源掉线通知由本服务自身发送；如果整个主机或服务停止运行，需要另配外部 uptime 监控。
 
@@ -71,6 +74,8 @@ Docker 默认只监听宿主机本地地址。需要从可信局域网直接访�
 
 - 每台设备只保存最新位置。
 - 浏览器定位只在点击“获取位置”时执行。
+- 地图瓦片由后端代取并缓存，浏览器不会直接把访问 IP 暴露给地图服务。
+- 网页图标随项目本地提供；自建 Bark 网关在 `/eew-icon.png` 提供同一图标，`PUSH_ICON_URL` 可指向自己的 Bark 域名。
 - 不保存位置轨迹。
 - 公网访问建议使用 Cloudflare Access / VPN / 反向代理认证。
 - 不要提交 `.env`、`data/`、SQLite 数据库、真实 Bark Key、手机号、账号或 token。
@@ -99,6 +104,7 @@ python3 scripts/privacy_check.py
 ```bash
 npm run build
 npm run typecheck
+npm test
 python3 -m py_compile app/*.py scripts/privacy_check.py tests/*.py
 docker compose run --rm -v "$PWD:/src" --entrypoint sh eew-hub \
   -c "cd /src && pip install -r requirements-dev.txt && PYTHONPATH=/src pytest"

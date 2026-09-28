@@ -8,7 +8,8 @@ from pathlib import Path
 from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException, Query, Request
-from fastapi.responses import FileResponse, JSONResponse
+import httpx
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from .config import default_system_config, get_system_config, set_system_config, settings
@@ -18,10 +19,12 @@ from .core import (
     normalize_device,
     process_event,
     public_device,
+    restore_pending_pushes,
     restore_scheduled_arrival_pushes,
 )
 from .db import Database
 from .global_quakes import GlobalQuakeListener
+from .maintenance import MaintenanceManager
 from .models import Decision, DeviceIn, DevicePatch, EarthquakeEvent, LocationUpdate, SimulationIn, SystemConfigPatch, TestPushIn, utc_now
 from .push import dispatch_push
 from .source_health import SourceHealthMonitor
@@ -31,6 +34,7 @@ db = Database(settings.db_path)
 listener = WolfxListener(db)
 global_listener = GlobalQuakeListener(db)
 source_health_monitor = SourceHealthMonitor(db)
+maintenance_manager = MaintenanceManager(db)
 
 
 @asynccontextmanager
@@ -38,14 +42,17 @@ async def lifespan(_: FastAPI):
     db.init()
     config = set_system_config(db.get_state("system_config", default_system_config()))
     db.set_state("system_config", config)
+    restore_pending_pushes(db)
     restore_scheduled_arrival_pushes(db)
     listener.start()
     global_listener.start()
     source_health_monitor.start()
+    maintenance_manager.start()
     try:
         yield
     finally:
         cancel_all_arrival_pushes()
+        await maintenance_manager.stop()
         await source_health_monitor.stop()
         await listener.stop()
         await global_listener.stop()
@@ -69,13 +76,33 @@ async def security_and_auth(request: Request, call_next):
     response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["Referrer-Policy"] = "no-referrer"
-    response.headers["X-Frame-Options"] = "SAMEORIGIN"
+    response.headers["Content-Security-Policy"] = f"frame-ancestors {settings.frame_ancestors}"
     return response
 
 
 PUBLIC_DIR = Path(__file__).resolve().parent.parent / "public"
 
 app.mount("/assets", StaticFiles(directory=PUBLIC_DIR / "assets"), name="assets")
+app.mount("/static", StaticFiles(directory=Path(__file__).resolve().parent / "static"), name="static")
+
+
+@app.get("/map-tiles/{z}/{x}/{y}.png")
+async def map_tile(z: int, x: int, y: int) -> Response:
+    if not 0 <= z <= 19 or not 0 <= x < 2**z or not 0 <= y < 2**z:
+        raise HTTPException(404, "tile not found")
+    target = settings.data_dir / "map-cache" / str(z) / str(x) / f"{y}.png"
+    if target.exists():
+        return FileResponse(target, media_type="image/png", headers={"Cache-Control": "public, max-age=604800"})
+    url = settings.map_tile_url.format(z=z, x=x, y=y)
+    try:
+        async with httpx.AsyncClient(timeout=8, follow_redirects=True, proxy=settings.map_http_proxy or None) as client:
+            upstream = await client.get(url, headers={"User-Agent": "Apple-EEW-Hub/0.2 (+https://github.com/renxiaoyaoo/apple-eew-hub)"})
+        upstream.raise_for_status()
+    except httpx.HTTPError as exc:
+        raise HTTPException(502, "map tile unavailable") from exc
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(upstream.content)
+    return Response(upstream.content, media_type="image/png", headers={"Cache-Control": "public, max-age=604800"})
 
 
 @app.get("/")
@@ -194,10 +221,14 @@ async def update_system_config(payload: SystemConfigPatch) -> dict:
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
     db.set_state("system_config", config)
-    await listener.stop()
-    await global_listener.stop()
-    listener.start()
-    global_listener.start()
+    wolfx_keys = {"wolfx_enabled", "wolfx_ws_url", "wolfx_ws_base", "wolfx_sources"}
+    global_keys = {"global_enabled", "global_source_url"}
+    if wolfx_keys.intersection(updates):
+        await listener.stop()
+        listener.start()
+    if global_keys.intersection(updates):
+        await global_listener.stop()
+        global_listener.start()
     return config
 
 
@@ -386,7 +417,8 @@ async def alert_by_id(event_id: str) -> dict:
     decisions = db.query(
         """
         SELECT d.device_id, devices.name AS device_name, d.distance_km, d.arrival_seconds,
-               d.intensity, d.intensity_text, d.status, d.should_push, d.reason, d.created_at
+               d.intensity, d.intensity_text, d.status, d.should_push, d.reason, d.created_at,
+               d.device_city, d.device_latitude, d.device_longitude
         FROM decisions d
         LEFT JOIN devices ON devices.id = d.device_id
         WHERE d.event_id = ?

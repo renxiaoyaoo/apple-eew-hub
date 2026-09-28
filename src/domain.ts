@@ -225,6 +225,7 @@ export function alertReasonText(event: LatestAlert["event"], decision: NonNullab
   const deviceName = device?.name || decision.device_name || "这台 Apple 设备";
   const city = device?.default_city ? `，位置为${device.default_city}` : "";
   const metrics = `距震中约 ${Math.round(decision.distance_km)}km，预计烈度 ${decision.intensity.toFixed(1)}，震级 M${event?.magnitude.toFixed(1) ?? "未知"}`;
+  if (event?.source === "test") return `这是发送给 ${deviceName} 的测试通知，只用于验证推送通道。`;
   if (event?.test) return `因为这是演练，系统会按演练场景给 ${deviceName} 发送提醒。`;
   if (decision.reason === "global major earthquake") {
     return `因为这场地震达到全球特大地震阈值 M${globalMin}+。它会作为温和提醒发送，不按本地横波倒计时理解。`;
@@ -257,9 +258,29 @@ export function parseBarkKey(value: string) {
 }
 
 export function coordsFor(city: string, latitude: string, longitude: string) {
-  const lat = Number(latitude);
-  const lng = Number(longitude);
-  if (Number.isFinite(lat) && Number.isFinite(lng)) return { lat, lng };
+  const latitudeText = latitude.trim();
+  const longitudeText = longitude.trim();
+  if (latitudeText || longitudeText) {
+    if (!latitudeText || !longitudeText) throw new Error("纬度和经度需要同时填写。");
+    const lat = Number(latitudeText);
+    const lng = Number(longitudeText);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+      throw new Error("经纬度格式不正确。");
+    }
+    return { lat, lng };
+  }
   const normalized = city.replace(/市$/, "").trim();
-  return cityCoords[normalized] ?? chengdu;
+  const known = cityCoords[normalized];
+  if (known) return known;
+  throw new Error("当前无法识别这个城市，请点击“获取位置”或填写经纬度。");
+}
+
+export function uniqueEvents<T extends { event_id: string }>(items: T[]) {
+  const seen = new Set<string>();
+  return items.filter((item) => {
+    const key = canonicalLogEventId(item.event_id);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
