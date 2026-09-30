@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from types import TracebackType
 
-from websockets.asyncio.client import ClientConnection, connect as websocket_connect
+from websockets.asyncio.client import ClientConnection
+from websockets.asyncio.client import connect as websocket_connect
 from websockets.exceptions import ConnectionClosedOK
 
 

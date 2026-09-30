@@ -4,10 +4,10 @@ import asyncio
 import json
 import logging
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from .config import get_system_config, settings
+from .config import get_system_config
 from .core import process_event
 from .db import Database
 from .geo import haversine_km, parse_dt
@@ -34,22 +34,38 @@ def canonical_wolfx_event_id(event_id: str) -> str:
     return match.group(1) if match else event_id
 
 
-def normalize_wolfx_time(value: Any) -> str:
+def normalize_wolfx_time(value: Any, source: str = "") -> str:
     if not value:
         return datetime.now(timezone.utc).isoformat()
     text = str(value).strip()
     if text.endswith("Z"):
         return text[:-1] + "+00:00"
     try:
-        return datetime.fromisoformat(text).isoformat()
+        parsed = datetime.fromisoformat(text)
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone(timedelta(hours=9 if source == "jma_eew" else 8)))
+        return parsed.isoformat()
     except ValueError:
         pass
     for fmt in WOLFX_TIME_FORMATS:
         try:
-            return datetime.strptime(text, fmt).isoformat()
+            parsed = datetime.strptime(text, fmt)
+            offset = timezone(timedelta(hours=9 if source == "jma_eew" else 8))
+            return parsed.replace(tzinfo=offset).isoformat()
         except ValueError:
             continue
     return text
+
+
+def wolfx_endpoints(config: dict[str, Any] | None = None) -> list[tuple[str, str]]:
+    config = config or get_system_config()
+    if config["wolfx_ws_url"]:
+        urls = [item.strip() for item in str(config["wolfx_ws_url"]).split(",") if item.strip()]
+        return [(url.rstrip("/").split("/")[-1] or "wolfx", url) for url in urls]
+    return [
+        (source, f"{str(config['wolfx_ws_base']).rstrip('/')}/{source}")
+        for source in config["wolfx_sources"]
+    ]
 
 
 def normalize_wolfx_message(data: dict[str, Any], source_hint: str = "") -> EarthquakeEvent | None:
@@ -72,7 +88,10 @@ def normalize_wolfx_message(data: dict[str, Any], source_hint: str = "") -> Eart
     )
     if latitude is None or longitude is None or magnitude is None or not epicenter:
         return None
-    origin_time = normalize_wolfx_time(_pick(nested, "OriginTime", "originTime", "ReportTime", "reportTime", "Time", "time"))
+    origin_time = normalize_wolfx_time(
+        _pick(nested, "OriginTime", "originTime", "ReportTime", "reportTime", "Time", "time"),
+        source,
+    )
     if not event_id:
         event_id = f"{source}:{origin_time}:{latitude}:{longitude}:{magnitude}"
     else:
@@ -87,7 +106,7 @@ def normalize_wolfx_message(data: dict[str, Any], source_hint: str = "") -> Eart
         latitude=float(latitude),
         longitude=float(longitude),
         magnitude=float(magnitude),
-        depth_km=float(_pick(nested, "Depth", "depth", "DepthKm", "depth_km", default=10) or 10),
+        depth_km=abs(float(_pick(nested, "Depth", "depth", "DepthKm", "depth_km", default=10) or 10)),
         origin_time=str(origin_time),
         raw=data,
         test=False,
@@ -141,14 +160,7 @@ class WolfxListener:
         self.tasks = []
 
     def _endpoints(self) -> list[tuple[str, str]]:
-        config = get_system_config()
-        if config["wolfx_ws_url"]:
-            urls = [item.strip() for item in str(config["wolfx_ws_url"]).split(",") if item.strip()]
-            return [(url.rstrip("/").split("/")[-1] or "wolfx", url) for url in urls]
-        endpoints = []
-        for source in config["wolfx_sources"]:
-            endpoints.append((source, f"{str(config['wolfx_ws_base']).rstrip('/')}/{source}"))
-        return endpoints
+        return wolfx_endpoints()
 
     def _set_source_state(self, source: str, state: dict) -> None:
         current = self.db.get_state("listener_sources", {})
@@ -188,6 +200,9 @@ class WolfxListener:
                         except (json.JSONDecodeError, TypeError, ValueError) as exc:
                             LOGGER.warning("Ignored invalid Wolfx message for %s: %s", source, exc)
                             continue
+                if self.running:
+                    self._set_source_state(source, {"connected": False, "message": "connection closed", "url": url})
+                    await asyncio.sleep(1)
             except asyncio.CancelledError:
                 raise
             except Exception as exc:

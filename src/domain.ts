@@ -149,7 +149,6 @@ export function formatEventTime(value?: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "未知";
   return date.toLocaleString("zh-CN", {
-    timeZone: "Asia/Shanghai",
     month: "2-digit",
     day: "2-digit",
     hour: "2-digit",
@@ -223,7 +222,8 @@ export function decisionReasonLabel(reason?: string) {
 
 export function alertReasonText(event: LatestAlert["event"], decision: NonNullable<LatestAlert["decisions"]>[number], device?: Device, globalMin = 7.0) {
   const deviceName = device?.name || decision.device_name || "这台 Apple 设备";
-  const city = device?.default_city ? `，位置为${device.default_city}` : "";
+  const locationName = decision.device_city || device?.default_city;
+  const city = locationName ? `，位置为${locationName}` : "";
   const metrics = `距震中约 ${Math.round(decision.distance_km)}km，预计烈度 ${decision.intensity.toFixed(1)}，震级 M${event?.magnitude.toFixed(1) ?? "未知"}`;
   if (event?.source === "test") return `这是发送给 ${deviceName} 的测试通知，只用于验证推送通道。`;
   if (event?.test) return `因为这是演练，系统会按演练场景给 ${deviceName} 发送提醒。`;

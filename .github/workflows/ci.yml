@@ -25,7 +25,13 @@ jobs:
 
       - run: python3 -m py_compile app/*.py scripts/privacy_check.py tests/*.py
 
+      - run: ruff check --select E4,E7,E9,F,I app tests scripts
+
+      - run: pip-audit -r requirements.txt --progress-spinner off --timeout 60
+
       - run: npm ci
+
+      - run: npm audit
 
       - run: npm run typecheck
 

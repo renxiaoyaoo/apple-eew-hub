@@ -17,6 +17,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY app ./app
 COPY --from=frontend /src/public ./public
+RUN chmod -R a+rX /app
 
 EXPOSE 18761
 VOLUME ["/data"]

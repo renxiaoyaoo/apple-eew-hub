@@ -1,18 +1,24 @@
 from __future__ import annotations
 
 import json
+import os
 import secrets
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 
-from fastapi import FastAPI, HTTPException, Query, Request
 import httpx
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from .config import default_system_config, get_system_config, set_system_config, settings
+from .config import (
+    default_system_config,
+    get_system_config,
+    set_system_config,
+    settings,
+)
 from .core import (
     cancel_all_arrival_pushes,
     cancel_device_arrival_pushes,
@@ -25,10 +31,22 @@ from .core import (
 from .db import Database
 from .global_quakes import GlobalQuakeListener
 from .maintenance import MaintenanceManager
-from .models import Decision, DeviceIn, DevicePatch, EarthquakeEvent, LocationUpdate, SimulationIn, SystemConfigPatch, TestPushIn, utc_now
+from .models import (
+    Decision,
+    DeviceIn,
+    DevicePatch,
+    EarthquakeEvent,
+    LocationUpdate,
+    SimulationIn,
+    SystemConfigPatch,
+    TestPushIn,
+    utc_now,
+)
 from .push import dispatch_push
 from .source_health import SourceHealthMonitor
-from .wolfx import WolfxListener
+from .wolfx import WolfxListener, wolfx_endpoints
+
+os.umask(0o077)
 
 db = Database(settings.db_path)
 listener = WolfxListener(db)
@@ -63,6 +81,14 @@ app = FastAPI(title=settings.app_name, lifespan=lifespan)
 PUBLIC_PATHS = {
     "/api/health",
 }
+MAX_MAP_TILE_BYTES = 2 * 1024 * 1024
+
+
+def enabled_source_names(config: dict) -> list[str]:
+    names = [source for source, _ in wolfx_endpoints(config)] if config["wolfx_enabled"] else []
+    if config["global_enabled"]:
+        names.append("emsc_global")
+    return list(dict.fromkeys(names))
 
 
 @app.middleware("http")
@@ -72,11 +98,22 @@ async def security_and_auth(request: Request, call_next):
         auth = request.headers.get("authorization", "")
         token = auth.removeprefix("Bearer ").strip()
         if not secrets.compare_digest(token, settings.auth_token):
-            return JSONResponse({"detail": "unauthorized"}, status_code=401)
-    response = await call_next(request)
+            response = JSONResponse({"detail": "unauthorized"}, status_code=401)
+        else:
+            response = await call_next(request)
+    else:
+        response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["Referrer-Policy"] = "no-referrer"
-    response.headers["Content-Security-Policy"] = f"frame-ancestors {settings.frame_ancestors}"
+    response.headers["Permissions-Policy"] = "geolocation=(self), camera=(), microphone=()"
+    response.headers["X-Permitted-Cross-Domain-Policies"] = "none"
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; "
+        "script-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; "
+        f"form-action 'self'; frame-ancestors {settings.frame_ancestors}"
+    )
+    if path.startswith("/api/"):
+        response.headers["Cache-Control"] = "no-store"
     return response
 
 
@@ -96,13 +133,30 @@ async def map_tile(z: int, x: int, y: int) -> Response:
     url = settings.map_tile_url.format(z=z, x=x, y=y)
     try:
         async with httpx.AsyncClient(timeout=8, follow_redirects=True, proxy=settings.map_http_proxy or None) as client:
-            upstream = await client.get(url, headers={"User-Agent": "Apple-EEW-Hub/0.2 (+https://github.com/renxiaoyaoo/apple-eew-hub)"})
-        upstream.raise_for_status()
+            async with client.stream(
+                "GET",
+                url,
+                headers={"User-Agent": "Apple-EEW-Hub/0.2 (+https://github.com/renxiaoyaoo/apple-eew-hub)"},
+            ) as upstream:
+                upstream.raise_for_status()
+                content_type = upstream.headers.get("content-type", "").lower()
+                if not content_type.startswith("image/"):
+                    raise HTTPException(502, "map tile response is not an image")
+                content = bytearray()
+                async for chunk in upstream.aiter_bytes():
+                    content.extend(chunk)
+                    if len(content) > MAX_MAP_TILE_BYTES:
+                        raise HTTPException(502, "map tile response is too large")
     except httpx.HTTPError as exc:
         raise HTTPException(502, "map tile unavailable") from exc
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_bytes(upstream.content)
-    return Response(upstream.content, media_type="image/png", headers={"Cache-Control": "public, max-age=604800"})
+    temporary = target.with_suffix(f".{uuid4().hex}.tmp")
+    try:
+        temporary.write_bytes(content)
+        temporary.replace(target)
+    finally:
+        temporary.unlink(missing_ok=True)
+    return Response(bytes(content), media_type="image/png", headers={"Cache-Control": "public, max-age=604800"})
 
 
 @app.get("/")
@@ -145,7 +199,12 @@ async def status() -> dict:
     config = get_system_config()
     listener_state = db.get_state("listener", {"connected": False, "message": "not started", "sources": {}})
     global_state = db.get_state("global_listener", {"connected": False, "message": "not started", "sources": {}})
-    merged_sources = {**(listener_state.get("sources") or {}), **(global_state.get("sources") or {})}
+    expected_sources = enabled_source_names(config)
+    all_sources = {**(listener_state.get("sources") or {}), **(global_state.get("sources") or {})}
+    merged_sources = {
+        name: all_sources.get(name, {"connected": False, "message": "not started"})
+        for name in expected_sources
+    }
     connected_count = sum(bool(item.get("connected")) for item in merged_sources.values())
     source_count = len(merged_sources)
     listener_state = {
@@ -160,7 +219,7 @@ async def status() -> dict:
         "app": settings.app_name,
         "time": utc_now(),
         "listener": listener_state,
-        "sources": (*config["wolfx_sources"], "emsc_global"),
+        "sources": expected_sources,
         "wolfx_configured": bool(config["wolfx_ws_url"] or config["wolfx_ws_base"]),
         "wolfx_ws_base": config["wolfx_ws_base"],
         "global_quake_min_magnitude": config["global_min_magnitude"],
@@ -188,9 +247,15 @@ async def status() -> dict:
 @app.get("/api/health")
 async def health() -> dict:
     db.one("SELECT 1 AS ok")
+    config = get_system_config()
     wolfx_state = db.get_state("listener", {"connected": False, "sources": {}})
     global_state = db.get_state("global_listener", {"connected": False, "sources": {}})
-    sources = {**(wolfx_state.get("sources") or {}), **(global_state.get("sources") or {})}
+    expected_sources = enabled_source_names(config)
+    all_sources = {**(wolfx_state.get("sources") or {}), **(global_state.get("sources") or {})}
+    sources = {
+        name: all_sources.get(name, {"connected": False, "message": "not started"})
+        for name in expected_sources
+    }
     return {
         "ok": True,
         "ready": bool(sources) and all(item.get("connected") for item in sources.values()),
@@ -357,16 +422,24 @@ async def test_push(payload: TestPushIn) -> dict:
         status="pending",
         should_push=True,
         reason="test push",
+        device_city=device["default_city"],
+        device_latitude=device["latitude"],
+        device_longitude=device["longitude"],
     )
     result = await dispatch_push(device, event, decision, repeat_override=1)
     db.execute(
         """
         INSERT INTO decisions
         (event_id, device_id, distance_km, arrival_seconds, intensity, intensity_text,
-         status, should_push, reason, pushed, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         status, should_push, reason, pushed, device_city, device_latitude,
+         device_longitude, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
-        (event.event_id, device["id"], 0, 18, 2, "轻微震感", "pending", 1, "test push", int(result["ok"]), now),
+        (
+            event.event_id, device["id"], 0, 18, 2, "轻微震感", "pending", 1,
+            "test push", int(result["ok"]), device["default_city"], device["latitude"],
+            device["longitude"], now,
+        ),
     )
     db.execute(
         """
@@ -466,7 +539,7 @@ async def logs(
                 )
                 """
             )["c"],
-            "notified_events": db.one("SELECT COUNT(DISTINCT event_id) AS c FROM pushes")["c"],
+            "notified_events": db.one("SELECT COUNT(DISTINCT event_id) AS c FROM pushes WHERE ok = 1")["c"],
             "observed_events": db.one("SELECT COUNT(*) AS c FROM observed_events")["c"],
             "observed_recorded": db.one("SELECT COUNT(*) AS c FROM observed_events WHERE recorded = 1")["c"],
         },
@@ -579,23 +652,43 @@ async def import_config(payload: dict) -> dict:
     if not isinstance(devices, list):
         raise HTTPException(400, "devices must be a list")
     validated = [DeviceIn(**item) for item in devices]
+    names = [device.name for device in validated]
+    if len(names) != len(set(names)):
+        raise HTTPException(400, "device names must be unique")
     backup_result = await backup()
     cancel_all_arrival_pushes()
     now = utc_now()
     with db.transaction() as conn:
-        conn.execute("DELETE FROM devices")
         for device in validated:
-            conn.execute(
-                """
-                INSERT INTO devices
-                (name, push_type, bark_key, push_url, default_city, latitude, longitude, min_magnitude,
-                 max_distance_km, min_intensity, enabled, receive_tests, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    device.name, device.push_type, device.bark_key, device.push_url, device.default_city,
-                    device.latitude, device.longitude, device.min_magnitude, device.max_distance_km,
-                    device.min_intensity, int(device.enabled), int(device.receive_tests), now, now,
-                ),
-            )
-    return {"ok": True, "imported": len(validated), "backup": backup_result["path"]}
+            existing = conn.execute("SELECT * FROM devices WHERE name = ? ORDER BY id LIMIT 1", (device.name,)).fetchone()
+            if existing:
+                conn.execute(
+                    """
+                    UPDATE devices SET push_type = ?, bark_key = ?, push_url = ?, default_city = ?,
+                      latitude = ?, longitude = ?, min_magnitude = ?, max_distance_km = ?,
+                      min_intensity = ?, enabled = ?, receive_tests = ?, updated_at = ?
+                    WHERE id = ?
+                    """,
+                    (
+                        device.push_type, device.bark_key or existing["bark_key"],
+                        device.push_url or existing["push_url"], device.default_city,
+                        device.latitude, device.longitude, device.min_magnitude,
+                        device.max_distance_km, device.min_intensity, int(device.enabled),
+                        int(device.receive_tests), now, existing["id"],
+                    ),
+                )
+            else:
+                conn.execute(
+                    """
+                    INSERT INTO devices
+                    (name, push_type, bark_key, push_url, default_city, latitude, longitude, min_magnitude,
+                     max_distance_km, min_intensity, enabled, receive_tests, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        device.name, device.push_type, device.bark_key, device.push_url, device.default_city,
+                        device.latitude, device.longitude, device.min_magnitude, device.max_distance_km,
+                        device.min_intensity, int(device.enabled), int(device.receive_tests), now, now,
+                    ),
+                )
+    return {"ok": True, "imported": len(validated), "mode": "merge", "backup": backup_result["path"]}

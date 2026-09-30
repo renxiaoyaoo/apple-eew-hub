@@ -15,6 +15,10 @@ describe("coordsFor", () => {
     expect(() => coordsFor("成都", "30.5", "")).toThrow("同时填写");
     expect(() => coordsFor("成都", "91", "104")).toThrow("格式不正确");
   });
+
+  it("keeps valid coordinates on the equator and prime meridian", () => {
+    expect(coordsFor("", "0", "0")).toEqual({ lat: 0, lng: 0 });
+  });
 });
 
 describe("uniqueEvents", () => {

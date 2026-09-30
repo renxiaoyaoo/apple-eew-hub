@@ -1,10 +1,17 @@
 import anyio
 import pytest
 
-from app.core import ARRIVAL_TASKS, BACKGROUND_TASKS, decide_for_device, process_event, public_device, restore_scheduled_arrival_pushes
+from app.config import default_system_config, set_system_config
+from app.core import (
+    ARRIVAL_TASKS,
+    BACKGROUND_TASKS,
+    decide_for_device,
+    process_event,
+    public_device,
+    restore_scheduled_arrival_pushes,
+)
 from app.db import Database
 from app.models import EarthquakeEvent
-from app.config import default_system_config, set_system_config
 
 
 def device(**kwargs):

@@ -1,4 +1,10 @@
-from app.geo import estimate_intensity, haversine_km, intensity_text, parse_dt, wave_status
+from app.geo import (
+    estimate_intensity,
+    haversine_km,
+    intensity_text,
+    parse_dt,
+    wave_status,
+)
 
 
 def test_haversine_chengdu_yibin_distance_is_reasonable():

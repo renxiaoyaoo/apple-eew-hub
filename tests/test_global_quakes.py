@@ -1,6 +1,10 @@
-from app.db import Database
 from app.config import default_system_config, set_system_config
-from app.global_quakes import global_record_reason, normalize_emsc_message, should_record_global_event
+from app.db import Database
+from app.global_quakes import (
+    global_record_reason,
+    normalize_emsc_message,
+    should_record_global_event,
+)
 
 
 def test_normalize_emsc_message_accepts_standing_order_payload():

@@ -25,6 +25,7 @@
 
 ```bash
 cp example.env .env
+install -d -m 700 data bark-data
 docker compose up -d --build
 ```
 
@@ -84,7 +85,7 @@ Docker 默认只监听宿主机本地地址。需要从可信局域网直接访�
 
 仓库内置常规检查：
 
-- GitHub Actions：每次 push / pull request 自动运行隐私检查、前端构建、Python 编译和 pytest。
+- GitHub Actions：每次 push / pull request 自动运行隐私检查、依赖漏洞扫描、静态检查、前端构建和 pytest。
 - 本地 pre-commit：安装后，每次提交前自动运行隐私检查。
 
 安装本地钩子：
@@ -105,9 +106,12 @@ python3 scripts/privacy_check.py
 npm run build
 npm run typecheck
 npm test
+npm audit
 python3 -m py_compile app/*.py scripts/privacy_check.py tests/*.py
-docker compose run --rm -v "$PWD:/src" --entrypoint sh eew-hub \
+docker compose run --rm --user 0:0 -v "$PWD:/src" --entrypoint sh eew-hub \
   -c "cd /src && pip install -r requirements-dev.txt && PYTHONPATH=/src pytest"
+ruff check --select E4,E7,E9,F,I app tests scripts
+pip-audit -r requirements.txt --progress-spinner off --timeout 60
 ```
 
 前端静态文件由 `npm run build` 或 Docker 构建生成到 `public/`，不提交到仓库。

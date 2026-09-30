@@ -3,9 +3,14 @@ from urllib.parse import unquote
 
 import pytest
 
-from app.models import Decision
-from app.models import EarthquakeEvent
-from app.push import bark_payload, ntfy_priority, push_text, send_webhook, system_bark_payload
+from app.models import Decision, EarthquakeEvent
+from app.push import (
+    bark_payload,
+    ntfy_priority,
+    push_text,
+    send_webhook,
+    system_bark_payload,
+)
 
 
 def event(**kwargs):

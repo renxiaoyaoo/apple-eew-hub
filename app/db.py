@@ -2,13 +2,12 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from contextlib import contextmanager
 from collections.abc import Iterable
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
 from .models import utc_now
-
 
 SCHEMA = """
 PRAGMA journal_mode=WAL;
@@ -106,10 +105,15 @@ class Database:
     def __init__(self, path: Path):
         self.path = path
         self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.path.parent.chmod(0o700)
+        if self.path.exists():
+            self.path.chmod(0o600)
 
     def connect(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self.path, check_same_thread=False)
+        conn = sqlite3.connect(self.path, timeout=5, check_same_thread=False)
+        self.path.chmod(0o600)
         conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA busy_timeout = 5000")
         return conn
 
     @contextmanager
@@ -133,6 +137,7 @@ class Database:
         target.parent.mkdir(parents=True, exist_ok=True)
         with self.connect() as source, sqlite3.connect(target) as destination:
             source.backup(destination)
+        target.chmod(0o600)
 
     def _migrate(self, conn: sqlite3.Connection) -> None:
         device_columns = {row["name"] for row in conn.execute("PRAGMA table_info(devices)").fetchall()}

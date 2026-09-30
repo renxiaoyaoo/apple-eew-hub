@@ -2,6 +2,7 @@ services:
   eew-hub:
     build: .
     container_name: apple-eew-hub
+    user: "${PUID:-1000}:${PGID:-1000}"
     restart: unless-stopped
     depends_on:
       bark-server:
@@ -54,6 +55,11 @@ services:
       - ./data:/data
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   bark-core:
     image: ghcr.io/finb/bark-server:v2.3.5
@@ -62,9 +68,14 @@ services:
     command: ["bark-server", "--addr", "0.0.0.0:18762", "--data", "/data"]
     volumes:
       - ./bark-data:/data
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   bark-server:
-    image: nginx:1.27.5-alpine
+    image: nginx:1.30.5-alpine
     container_name: apple-eew-bark
     restart: unless-stopped
     depends_on:
@@ -80,9 +91,14 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   cloudflared:
-    image: cloudflare/cloudflared:2026.5.0
+    image: cloudflare/cloudflared:2026.9.3
     container_name: apple-eew-cloudflared
     restart: unless-stopped
     profiles:
@@ -91,3 +107,8 @@ services:
     depends_on:
       - eew-hub
       - bark-server
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

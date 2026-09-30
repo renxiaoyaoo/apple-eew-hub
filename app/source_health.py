@@ -9,6 +9,7 @@ from .core import normalize_device
 from .db import Database
 from .models import utc_now
 from .push import dispatch_system_notification
+from .wolfx import wolfx_endpoints
 
 SOURCE_NAMES = {
     "sc_eew": "四川地震预警",
@@ -28,7 +29,7 @@ LOGGER = logging.getLogger(__name__)
 
 def source_health_snapshot(db: Database) -> tuple[list[str], list[str]]:
     config = get_system_config()
-    expected = list(config["wolfx_sources"]) if config["wolfx_enabled"] else []
+    expected = [source for source, _ in wolfx_endpoints(config)] if config["wolfx_enabled"] else []
     if config["global_enabled"]:
         expected.append("emsc_global")
     wolfx = db.get_state("listener", {}).get("sources", {})
@@ -111,38 +112,62 @@ class SourceHealthMonitor:
             self.db.set_state(STATE_KEY, {})
             return
 
-        if disconnected:
-            started_at = _parse_time(state.get("outage_started_at")) or now
-            notified = bool(state.get("notified"))
-            last_attempt = _parse_time(state.get("last_attempt_at"))
+        source_states = dict(state.get("sources") or {})
+        if not source_states and state.get("outage_started_at"):
+            source_states = {
+                name: {
+                    "outage_started_at": state.get("outage_started_at"),
+                    "notified": bool(state.get("notified")),
+                    "last_attempt_at": state.get("last_attempt_at"),
+                }
+                for name in state.get("failed_sources") or disconnected
+            }
+
+        recovered = [
+            name
+            for name, source_state in source_states.items()
+            if name in expected and name not in disconnected and source_state.get("notified")
+        ]
+        for name in list(source_states):
+            if name not in disconnected:
+                source_states.pop(name, None)
+
+        due: list[tuple[str, int]] = []
+        threshold_seconds = config["source_health_alert_after_minutes"] * 60
+        for name in disconnected:
+            source_state = dict(source_states.get(name) or {})
+            started_at = _parse_time(source_state.get("outage_started_at")) or now
+            last_attempt = _parse_time(source_state.get("last_attempt_at"))
             elapsed = (now - started_at).total_seconds()
             retry_due = not last_attempt or (now - last_attempt).total_seconds() >= RETRY_SECONDS
-            next_state = {
-                "outage_started_at": started_at.isoformat(),
-                "failed_sources": disconnected,
-                "notified": notified,
-                "last_attempt_at": state.get("last_attempt_at"),
-            }
-            if elapsed >= config["source_health_alert_after_minutes"] * 60 and not notified and retry_due:
-                names = "、".join(SOURCE_NAMES.get(name, name) for name in disconnected)
-                minutes = max(1, round(elapsed / 60))
-                title = "地震实时源异常"
-                body = f"{names}已连续离线约{minutes}分钟，预警覆盖可能不完整。请检查服务器网络。"
-                results = await self._notify(title, body, recovery=False)
-                self._record_history(title, body, results)
-                next_state["last_attempt_at"] = now.isoformat()
-                next_state["notified"] = any(item.get("ok") for item in results)
-            if next_state != state:
-                self.db.set_state(STATE_KEY, next_state)
-            return
+            source_state["outage_started_at"] = started_at.isoformat()
+            source_state["notified"] = bool(source_state.get("notified"))
+            if elapsed >= threshold_seconds and not source_state["notified"] and retry_due:
+                due.append((name, max(1, round(elapsed / 60))))
+            source_states[name] = source_state
 
-        if state.get("notified"):
-            recovered = [name for name in (state.get("failed_sources") or []) if name in expected]
-            if recovered:
-                names = "、".join(SOURCE_NAMES.get(name, name) for name in recovered)
-                title = "地震实时源已恢复"
-                body = f"{names}已恢复连接，实时预警覆盖正常。"
-                results = await self._notify(title, body, recovery=True)
-                self._record_history(title, body, results)
-        if state:
-            self.db.set_state(STATE_KEY, {})
+        if due:
+            names = "、".join(SOURCE_NAMES.get(name, name) for name, _ in due)
+            minutes = min(minutes for _, minutes in due)
+            title = "地震实时源异常"
+            body = f"{names}已连续离线约{minutes}分钟，预警覆盖可能不完整。请检查服务器网络。"
+            results = await self._notify(title, body, recovery=False)
+            self._record_history(title, body, results)
+            delivered = any(item.get("ok") for item in results)
+            for name, _ in due:
+                source_states[name]["last_attempt_at"] = now.isoformat()
+                source_states[name]["notified"] = delivered
+
+        if recovered:
+            names = "、".join(SOURCE_NAMES.get(name, name) for name in recovered)
+            title = "地震实时源已恢复"
+            body = f"{names}已恢复连接，实时预警覆盖正常。"
+            results = await self._notify(title, body, recovery=True)
+            self._record_history(title, body, results)
+
+        next_state = {
+            "sources": source_states,
+            "failed_sources": disconnected,
+            "notified": any(item.get("notified") for item in source_states.values()),
+        }
+        self.db.set_state(STATE_KEY, next_state if source_states else {})

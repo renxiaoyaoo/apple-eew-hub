@@ -1,4 +1,5 @@
 import sqlite3
+import stat
 
 from app.db import Database
 
@@ -14,3 +15,4 @@ def test_sqlite_backup_contains_committed_wal_data(tmp_path):
     with sqlite3.connect(target) as conn:
         value = conn.execute("SELECT value FROM app_state WHERE key = 'example'").fetchone()[0]
     assert '"value": 42' in value
+    assert stat.S_IMODE(target.stat().st_mode) == 0o600

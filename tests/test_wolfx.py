@@ -68,7 +68,28 @@ def test_normalize_wolfx_message_accepts_jma_slash_time():
 
     assert event is not None
     assert event.source == "jma_eew"
-    assert event.origin_time == "2026-08-20T00:50:21"
+    assert event.origin_time == "2026-08-20T00:50:21+09:00"
+
+
+def test_normalize_china_time_and_negative_depth():
+    event = normalize_wolfx_message(
+        {
+            "type": "sc_eew",
+            "Data": {
+                "EventID": "depth-test",
+                "HypoCenter": "测试震中",
+                "Latitude": 30,
+                "Longitude": 104,
+                "Magnitude": 4.5,
+                "Depth": -12,
+                "OriginTime": "2026-10-01 01:02:03",
+            },
+        }
+    )
+
+    assert event is not None
+    assert event.origin_time == "2026-10-01T01:02:03+08:00"
+    assert event.depth_km == 12
 
 
 def test_normalize_cenc_catalog_message_uses_endpoint_source():

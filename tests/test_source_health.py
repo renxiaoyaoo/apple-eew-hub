@@ -4,7 +4,7 @@ import pytest
 
 from app.config import default_system_config, set_system_config
 from app.db import Database
-from app.source_health import SourceHealthMonitor
+from app.source_health import SourceHealthMonitor, source_health_snapshot
 
 
 def insert_device(db: Database) -> None:
@@ -71,5 +71,62 @@ async def test_source_outage_alerts_once_and_sends_recovery(tmp_path, monkeypatc
         assert len(sent) == 2
         assert sent[1][0] == "地震实时源已恢复"
         assert sent[1][2] is True
+    finally:
+        set_system_config(default_system_config())
+
+
+@pytest.mark.anyio
+async def test_each_source_gets_its_own_outage_timer(tmp_path, monkeypatch):
+    db = Database(tmp_path / "eew.sqlite3")
+    db.init()
+    insert_device(db)
+    sent = []
+
+    async def fake_dispatch(device, title, body, recovery=False):
+        sent.append((title, body, recovery))
+        return {"channel": "bark", "ok": True, "status_code": 200, "latency_ms": 1, "message": "ok"}
+
+    monkeypatch.setattr("app.source_health.dispatch_system_notification", fake_dispatch)
+    set_system_config(
+        {
+            **default_system_config(),
+            "wolfx_sources": ["sc_eew", "cq_eew"],
+            "global_enabled": False,
+            "source_health_alert_after_minutes": 1,
+        }
+    )
+    monitor = SourceHealthMonitor(db)
+    started = datetime(2026, 10, 1, tzinfo=timezone.utc)
+    try:
+        db.set_state("listener", {"sources": {"sc_eew": {"connected": False}, "cq_eew": {"connected": True}}})
+        await monitor.check_once(started)
+        db.set_state("listener", {"sources": {"sc_eew": {"connected": True}, "cq_eew": {"connected": False}}})
+        await monitor.check_once(started + timedelta(seconds=50))
+        await monitor.check_once(started + timedelta(seconds=70))
+        assert sent == []
+
+        await monitor.check_once(started + timedelta(seconds=111))
+        assert len(sent) == 1
+        assert "重庆地震预警" in sent[0][1]
+    finally:
+        set_system_config(default_system_config())
+
+
+def test_custom_wolfx_urls_are_the_expected_health_sources(tmp_path):
+    db = Database(tmp_path / "eew.sqlite3")
+    db.init()
+    set_system_config(
+        {
+            **default_system_config(),
+            "wolfx_ws_url": "wss://example.test/custom_a,wss://example.test/custom_b",
+            "global_enabled": False,
+        }
+    )
+    db.set_state(
+        "listener",
+        {"sources": {"custom_a": {"connected": True}, "custom_b": {"connected": False}}},
+    )
+    try:
+        assert source_health_snapshot(db) == (["custom_a", "custom_b"], ["custom_b"])
     finally:
         set_system_config(default_system_config())

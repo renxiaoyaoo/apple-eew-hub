@@ -5,11 +5,17 @@ import json
 import logging
 from datetime import datetime, timezone
 
+from .config import get_system_config, settings
 from .db import Database
-from .geo import estimate_arrival_seconds, estimate_intensity, haversine_km, intensity_text, wave_status
+from .geo import (
+    estimate_arrival_seconds,
+    estimate_intensity,
+    haversine_km,
+    intensity_text,
+    wave_status,
+)
 from .models import Decision, EarthquakeEvent, utc_now
 from .push import dispatch_push
-from .config import get_system_config, settings
 
 LOGGER = logging.getLogger(__name__)
 MAX_SCHEDULED_ARRIVAL_SECONDS = 1800

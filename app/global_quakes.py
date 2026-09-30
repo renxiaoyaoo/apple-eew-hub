@@ -7,7 +7,12 @@ from datetime import datetime, timezone
 from typing import Any
 
 from .config import get_system_config, settings
-from .core import decide_for_device, is_global_local_distance, normalize_device, process_event
+from .core import (
+    decide_for_device,
+    is_global_local_distance,
+    normalize_device,
+    process_event,
+)
 from .db import Database
 from .models import EarthquakeEvent, utc_now
 from .simple_ws import SimpleWebSocket
@@ -151,6 +156,9 @@ class GlobalQuakeListener:
         while self.running:
             try:
                 await self._connect()
+                if self.running:
+                    self._set_state(False, "connection closed")
+                    await asyncio.sleep(1)
             except asyncio.CancelledError:
                 raise
             except Exception as exc:

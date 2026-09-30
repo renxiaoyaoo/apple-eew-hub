@@ -5,6 +5,7 @@
 ```bash
 cd apple-eew-hub
 cp example.env .env
+install -d -m 700 data bark-data
 docker compose up -d --build
 ```
 

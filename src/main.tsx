@@ -144,9 +144,9 @@ function App() {
       push_type: device.push_type || "bark",
       bark_key: "",
       push_url: "",
-      default_city: device.default_city || "成都",
-      latitude: String(device.latitude || ""),
-      longitude: String(device.longitude || ""),
+      default_city: device.default_city,
+      latitude: String(device.latitude),
+      longitude: String(device.longitude),
       min_magnitude: String(device.min_magnitude),
       max_distance_km: String(device.max_distance_km),
       min_intensity: String(device.min_intensity),
@@ -192,8 +192,8 @@ function App() {
     ? { lat: decision.device_latitude, lng: decision.device_longitude }
     : null;
   const user = snapshotLocation ?? (activeDevice ? { lat: activeDevice.latitude, lng: activeDevice.longitude } : chengdu);
-  const epicenter: [number, number] = [event.latitude || fallbackEpicenter.lat, event.longitude || fallbackEpicenter.lng];
-  const userPoint: [number, number] = [user.lat || chengdu.lat, user.lng || chengdu.lng];
+  const epicenter: [number, number] = [event.latitude ?? fallbackEpicenter.lat, event.longitude ?? fallbackEpicenter.lng];
+  const userPoint: [number, number] = [user.lat ?? chengdu.lat, user.lng ?? chengdu.lng];
   const waveKm = Math.max(20, Math.min(20000,
     liveArrivalSeconds > 0
       ? decision.distance_km - liveArrivalSeconds * 3.5
@@ -305,7 +305,7 @@ function App() {
     const payload: Record<string, unknown> = {
       name: form.name.trim() || "你的 Apple 设备",
       push_type: pushType,
-      default_city: form.default_city || "成都",
+      default_city: form.default_city.trim(),
       latitude: location.lat,
       longitude: location.lng,
       min_magnitude: Number(form.min_magnitude),
