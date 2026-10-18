@@ -22,4 +22,4 @@ RUN chmod -R a+rX /app
 EXPOSE 18761
 VOLUME ["/data"]
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:18761/api/health', timeout=4).read()"
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "18761"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "18761", "--loop", "asyncio"]

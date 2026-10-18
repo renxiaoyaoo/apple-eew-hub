@@ -69,13 +69,10 @@ services:
     volumes:
       - ./bark-data:/data
     logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
+      driver: "none"
 
   bark-server:
-    image: nginx:1.30.5-alpine
+    image: nginx:1.30.6-alpine
     container_name: apple-eew-bark
     restart: unless-stopped
     depends_on:
@@ -98,7 +95,7 @@ services:
         max-file: "3"
 
   cloudflared:
-    image: cloudflare/cloudflared:2026.9.3
+    image: cloudflare/cloudflared:2026.10.0
     container_name: apple-eew-cloudflared
     restart: unless-stopped
     profiles:

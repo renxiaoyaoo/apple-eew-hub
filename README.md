@@ -77,6 +77,7 @@ Docker 默认只监听宿主机本地地址。需要从可信局域网直接访�
 - 浏览器定位只在点击“获取位置”时执行。
 - 地图瓦片由后端代取并缓存，浏览器不会直接把访问 IP 暴露给地图服务。
 - 网页图标随项目本地提供；自建 Bark 网关在 `/eew-icon.png` 提供同一图标，`PUSH_ICON_URL` 可指向自己的 Bark 域名。
+- Bark 网关和 Bark Core 不持久化请求路径，避免推送 Key 进入容器日志。
 - 不保存位置轨迹。
 - 公网访问建议使用 Cloudflare Access / VPN / 反向代理认证。
 - 不要提交 `.env`、`data/`、SQLite 数据库、真实 Bark Key、手机号、账号或 token。
