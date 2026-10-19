@@ -58,9 +58,9 @@ export const defaultSystemConfig: SystemConfig = {
   bark_yellow_sound: "alarm",
   bark_yellow_repeat: 1,
   bark_yellow_repeat_gap_seconds: 0,
-  bark_blue_level: "active",
+  bark_blue_level: "timeSensitive",
   bark_blue_volume: "",
-  bark_blue_sound: "",
+  bark_blue_sound: "alarm",
   bark_blue_repeat: 1,
   bark_blue_repeat_gap_seconds: 0,
 };

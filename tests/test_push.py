@@ -57,11 +57,11 @@ def test_yellow_bark_payload_uses_critical_without_call():
     assert "call" not in query
 
 
-def test_blue_bark_payload_uses_active_without_custom_alarm():
+def test_blue_local_bark_payload_uses_time_sensitive_alarm():
     _, query = bark_payload(event(magnitude=4.6), 120, 1.5, "轻微震感", 20)
 
-    assert query["level"] == "active"
-    assert "sound" not in query
+    assert query["level"] == "timeSensitive"
+    assert query["sound"] == "alarm"
     assert "volume" not in query
     assert "call" not in query
 
@@ -208,7 +208,8 @@ def test_cenc_catalog_payload_is_a_report_without_arrival_wording():
     assert "中国地震台网正式速报" in decoded
     assert "横波已到达" not in decoded
     assert "秒后到达" not in decoded
-    assert query["level"] == "active"
+    assert query["level"] == "timeSensitive"
+    assert query["sound"] == "alarm"
 
 
 def test_source_outage_bark_notification_is_distinct_from_earthquakes():
